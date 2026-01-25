@@ -1,0 +1,33 @@
+# Walkthrough
+
+## Overview
+We successfully ran the **BigStore Pro** (formerly Invoicer Pro) application locally and enhanced the code documentation.
+
+## Steps Taken
+
+1.  **Local Execution**:
+    *   Identified the app as a static site.
+    *   Started a local Python HTTP server on port 8000.
+    *   Verified access at `http://localhost:8000`.
+
+2.  **Documentation Update**:
+    *   Added detailed, educational comments to [app.js](file:///home/szflnx/Downloads/Tech/Code%20projects/AntiGravity/Test1o1/app.js).
+    *   Explained key sections: State, Navigation, Cart, Scanner, Invoicing, and DB.
+    *   Provided "Editing Tips" in the comments to help future modifications.
+
+3.  **Rebranding**:
+    *   Renamed the application from "Invoicer Pro" to "BigStore Pro".
+    *   Updated [index.html](file:///home/szflnx/Downloads/Tech/Code%20projects/AntiGravity/Test1o1/index.html) title and headers.
+    *   Updated [manifest.json](file:///home/szflnx/Downloads/Tech/Code%20projects/AntiGravity/Test1o1/manifest.json) name.
+    *   Updated [app.js](file:///home/szflnx/Downloads/Tech/Code%20projects/AntiGravity/Test1o1/app.js) and [db.js](file:///home/szflnx/Downloads/Tech/Code%20projects/AntiGravity/Test1o1/db.js) comments and display text.
+    *   *Note*: The working directory is still named `Test1o1` to avoid interrupting the editor session.
+
+## How to Run
+Run the following command in the project directory:
+```bash
+python3 -m http.server 8000
+```
+Then open [http://localhost:8000](http://localhost:8000) in your browser.
+
+## Code Structure
+The [app.js](file:///home/szflnx/Downloads/Tech/Code%20projects/AntiGravity/Test1o1/app.js) file now contains guided comments. Look for `// --- Section Name ---` headers to find specific logic.

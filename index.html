@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#1e3a8a">
+    <title>BigStore Pro</title>
+
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icon-192.png">
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Icons -->
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="style.css">
+
+    <!-- Libraries (ES Modules preferred, but using globals for simplicity where needed or UMD) -->
+    <!-- Html5-QRCode -->
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <!-- JSPDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <!-- IDB (IndexedDB Wrapper) -->
+    <script src="https://cdn.jsdelivr.net/npm/idb@7/build/umd.js"></script>
+
+</head>
+
+<body>
+    <div id="app">
+        <!-- Dynamic Content will be loaded here -->
+        <div class="loading-screen">
+            <div class="spinner"></div>
+            <h1>BigStore Pro</h1>
+        </div>
+    </div>
+
+    <!-- Navigation Bar (Fixed Bottom) -->
+    <nav class="bottom-nav">
+        <button class="nav-item active" data-target="home">
+            <span class="material-icons-round">dashboard</span>
+            <span>Home</span>
+        </button>
+        <button class="nav-item" data-target="inventory">
+            <span class="material-icons-round">inventory_2</span>
+            <span>Stock</span>
+        </button>
+        <button class="nav-item fab" data-target="scan">
+            <span class="material-icons-round">qr_code_scanner</span>
+        </button>
+        <button class="nav-item" data-target="invoices">
+            <span class="material-icons-round">receipt_long</span>
+            <span>History</span>
+        </button>
+        <button class="nav-item" data-target="settings">
+            <span class="material-icons-round">settings</span>
+            <span>Settings</span>
+        </button>
+    </nav>
+
+    <script type="module" src="app.js"></script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./service-worker.js')
+                    .then(reg => console.log('Service Worker registered', reg))
+                    .catch(err => console.error('Service Worker registration failed', err));
+            });
+        }
+    </script>
+
+    <!-- Global Scanner Modal (Accessible from all views) -->
+    <div id="scanner-modal"
+        style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: black; z-index: 200;">
+        <div style="position: absolute; top: 20px; right: 20px; z-index: 201;">
+            <button onclick="stopCameraScan()"
+                style="background: white; border-radius: 50%; width: 40px; height: 40px; border: none; font-weight: bold;">X</button>
+        </div>
+        <div id="reader" style="width: 100%; height: 100%;"></div>
+    </div>
+</body>
+
+</html>

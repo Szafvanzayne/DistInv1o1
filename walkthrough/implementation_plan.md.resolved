@@ -1,0 +1,28 @@
+# Renaming Plan
+
+## Overview
+Rename the application branding from "Invoicer Pro" to "BigStore Pro".
+
+## User Review Required
+> [!NOTE]
+> I am updating the application internal branding (Title, Headers). The folder name is currently `Test1o1`. Renaming the folder currently open in the workspace can cause issues. I will stick to code changes for now.
+
+## Proposed Changes
+### [index.html](file:///home/szflnx/Downloads/Tech/Code projects/AntiGravity/Test1o1/index.html)
+- Change `<title>Invoicer Pro</title>` to `<title>BigStore Pro</title>`
+- Change loading screen `<h1>Invoicer Pro</h1>` to `<h1>BigStore Pro</h1>`
+
+### [manifest.json](file:///home/szflnx/Downloads/Tech/Code projects/AntiGravity/Test1o1/manifest.json)
+- Update `name` and `short_name` to "BigStore Pro".
+
+### [app.js](file:///home/szflnx/Downloads/Tech/Code projects/AntiGravity/Test1o1/app.js)
+- Update code comments referencing "Invoicer Pro".
+- Update About section text.
+- Ensure default settings use "BigStore Pro".
+
+### [db.js](file:///home/szflnx/Downloads/Tech/Code projects/AntiGravity/Test1o1/db.js)
+- Update DB name if necessary (likely keep as `invoicer_db` to preserve data, or migrate? Safe to keep DB name internal).
+
+## Verification Plan
+1.  **Code Search**: Verify all "Invoicer Pro" strings are replaced.
+2.  **App Check**: Verify Title and Header in browser (via walkthrough/human verification as browser tool is down).

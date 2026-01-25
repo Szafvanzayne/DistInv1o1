@@ -1,0 +1,21 @@
+{
+    "name": "BigStore Pro",
+    "short_name": "BigStore",
+    "start_url": "./index.html",
+    "display": "standalone",
+    "background_color": "#0a0a0a",
+    "theme_color": "#121212",
+    "description": "Premium Inventory and Invoice Management",
+    "icons": [
+        {
+            "src": "https://via.placeholder.com/192/7c4dff/ffffff?text=IP",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "https://via.placeholder.com/512/7c4dff/ffffff?text=IP",
+            "sizes": "512x512",
+            "type": "image/png"
+        }
+    ]
+}

@@ -1,0 +1,264 @@
+:root {
+    /* Flight App Theme (Blue/White) */
+    --primary: 210, 100%, 50%;
+    /* Bright Blue */
+    --primary-dark: 215, 60%, 30%;
+    /* Navy Blue */
+    --accent: 200, 100%, 60%;
+    /* Lighter Blue */
+
+    --bg-body: #f5f7fa;
+    /* Light Gray Background */
+    --bg-surface: #ffffff;
+    /* White Cards */
+    --bg-surface-2: #eef2f6;
+    /* Very light blue/gray for inputs */
+
+    --text-main: #1f2937;
+    /* Dark Gray/Black */
+    --text-secondary: #6b7280;
+    /* Muted Gray */
+    --text-muted: #9ca3af;
+
+    --border-light: #e5e7eb;
+
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+
+    --padding-safe: env(safe-area-inset-bottom);
+    --nav-height: 70px;
+
+    --radius-sm: 8px;
+    --radius-md: 16px;
+    /* Dofter corners */
+    --radius-lg: 30px;
+    /* Fully rounded */
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    -webkit-tap-highlight-color: transparent;
+}
+
+body {
+    font-family: 'Outfit', sans-serif;
+    background-color: var(--bg-body);
+    color: var(--text-main);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* Decoration */
+.wave-header {
+    background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+    height: 140px;
+    border-bottom-left-radius: 40px;
+    border-bottom-right-radius: 40px;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    z-index: 0;
+}
+
+/* Typography */
+h1 {
+    font-size: 24px;
+    font-weight: 700;
+    color: #1e3a8a;
+}
+
+/* Navy Title */
+h2 {
+    font-size: 18px;
+    font-weight: 600;
+}
+
+h3 {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+/* Layout */
+#app {
+    flex: 1;
+    overflow-y: auto;
+    padding-bottom: calc(var(--nav-height) + 20px);
+    position: relative;
+    z-index: 1;
+    /* Above wave */
+    padding-top: 20px;
+}
+
+.screen {
+    padding: 20px;
+    animation: fadeIn 0.3s ease;
+}
+
+/* Navigation */
+.bottom-nav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: var(--nav-height);
+    background-color: var(--bg-surface);
+    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.05);
+    /* Softer shadow */
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    padding-bottom: var(--padding-safe);
+    z-index: 100;
+}
+
+.nav-item {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    font-size: 10px;
+    gap: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.nav-item.active {
+    color: #3b82f6;
+    /* Bright Blue */
+}
+
+/* FAB */
+.nav-item.fab {
+    width: 60px;
+    height: 60px;
+    background: #1e3a8a;
+    /* Dark Navy */
+    border-radius: 50%;
+    color: white;
+    justify-content: center;
+    margin-bottom: 30px;
+    box-shadow: 0 4px 15px rgba(30, 58, 138, 0.4);
+    border: none;
+}
+
+.nav-item.fab .material-icons-round {
+    font-size: 30px;
+}
+
+/* Cards */
+.card {
+    background: var(--bg-surface);
+    border-radius: var(--radius-md);
+    padding: 20px;
+    box-shadow: var(--shadow-sm);
+    margin-bottom: 15px;
+    border: 1px solid var(--border-light);
+}
+
+/* Forms */
+input,
+select {
+    background: var(--bg-surface);
+    border: none;
+    /* Clean underline style or slight fill */
+    border-bottom: 2px solid var(--bg-surface-2);
+    color: var(--text-main);
+    padding: 12px 0;
+    border-radius: 0;
+    font-size: 16px;
+    width: 100%;
+    outline: none;
+    margin-bottom: 16px;
+    transition: border-color 0.2s;
+}
+
+input:focus,
+select:focus {
+    border-bottom-color: #3b82f6;
+}
+
+input.filled {
+    background: var(--bg-surface-2);
+    border: none;
+    padding: 14px 16px;
+    border-radius: var(--radius-md);
+}
+
+label {
+    display: block;
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 600;
+    margin-bottom: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Buttons */
+.btn-primary {
+    background: #1e3a8a;
+    /* Navy */
+    color: white;
+    border: none;
+    padding: 16px;
+    border-radius: var(--radius-lg);
+    /* Rounded pill buttons */
+    width: 100%;
+    font-weight: 600;
+    font-size: 16px;
+    box-shadow: 0 4px 12px rgba(30, 58, 138, 0.2);
+    letter-spacing: 0.5px;
+}
+
+.btn-secondary {
+    background: white;
+    color: #1e3a8a;
+    border: 1px solid #e5e7eb;
+    padding: 16px;
+    border-radius: var(--radius-lg);
+    width: 100%;
+    font-weight: 600;
+}
+
+/* Utilities */
+.text-white {
+    color: white;
+}
+
+.text-center {
+    text-align: center;
+}
+
+.mb-2 {
+    margin-bottom: 10px;
+}
+
+.mt-4 {
+    margin-top: 20px;
+}
+
+.flex-between {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+/* In-App Widgets */
+.stat-card {
+    background: white;
+    padding: 20px;
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-md);
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}

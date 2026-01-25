@@ -1,0 +1,16 @@
+# Common OS files
+.DS_Store
+Thumbs.db
+
+# Project generated artifacts
+task.md
+walkthrough.md
+implementation_plan.md
+
+# Editor settings
+.vscode/
+.idea/
+*.swp
+
+# Logs
+*.log

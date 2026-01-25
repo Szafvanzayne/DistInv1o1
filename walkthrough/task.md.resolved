@@ -1,0 +1,33 @@
+# Task List
+
+- [x] Project Initialization
+    - [x] Initialize Project Structure (HTML/CSS/JS)
+    - [x] Setup manifest for PWA (Android feel)
+- [x] Implementation Planning
+    - [x] Define data models (Product, Invoice)
+    - [x] Design UI flow (Inventory vs Billing)
+- [x] Core Features Implementation
+    - [x] Inventory Management (CRUD operations)
+    - [x] Cost Price & Stock Adjustment
+    - [x] Barcode Scanner Integration (Billing & Add Product)
+    - [x] Invoice Generation Logic (GST calculations)
+    - [x] PDF Generation & Sharing
+    - [x] Invoice Preview Screen (WhatsApp/Email/Download)
+    - [x] Settings Page (Store Details, Version)
+- [x] UI Implementation
+    - [x] Main Menu
+    - [x] Add/Edit Item Screen
+    - [x] Billing/Scan Screen
+    - [x] Invoice View
+- [x] Renaming
+    - [x] Update index.html branding
+    - [x] Update manifest.json
+    - [x] Update app.js branding
+    - [x] Update db.js branding
+- [x] Verification
+    - [x] Test Scanning (Billing & Field Mode)
+    - [x] Test Calculations
+    - [x] Test Sharing
+- [x] Local Execution
+    - [x] Start local HTTP server
+    - [x] Verify functionality
