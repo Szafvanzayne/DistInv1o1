@@ -96,13 +96,13 @@ window.renderView = (viewName) => {
                         <!-- Stats Cards -->
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 30px;">
                             <div class="stat-card">
-                                <span class="material-icons-round" style="color: #3b82f6; font-size: 24px;">receipt_long</span>
-                                <h2 style="color: #1f2937; margin-top: 10px;">0</h2>
+                                <span class="material-icons-round" style="color: #1e3a8a; font-size: 24px;">receipt_long</span>
+                                <h2 id="stat-invoices-today" style="color: #1f2937; margin-top: 10px;">0</h2>
                                 <span style="color: #6b7280; font-size: 12px;">Invoices Today</span>
                             </div>
                             <div class="stat-card">
                                 <span class="material-icons-round" style="color: #10b981; font-size: 24px;">payments</span>
-                                <h2 style="color: #1f2937; margin-top: 10px;">₹0</h2>
+                                <h2 id="stat-sales-today" style="color: #1f2937; margin-top: 10px;">₹0</h2>
                                 <span style="color: #6b7280; font-size: 12px;">Sales Today</span>
                             </div>
                         </div>
@@ -126,6 +126,7 @@ window.renderView = (viewName) => {
                     </div>
                 </div>
             `;
+            loadDashboardStats();
             break;
 
         case 'inventory':
@@ -470,6 +471,31 @@ window.renderView = (viewName) => {
 
 window.showAddProductForm = () => {
     renderView('add-product');
+};
+
+window.loadDashboardStats = async () => {
+    try {
+        const invoices = await db.getAllInvoices();
+        const todayStr = new Date().toDateString();
+
+        let todayCount = 0;
+        let todaySales = 0;
+
+        invoices.forEach(inv => {
+            if (new Date(inv.date).toDateString() === todayStr) {
+                todayCount++;
+                todaySales += inv.totalAmount;
+            }
+        });
+
+        const countEl = document.getElementById('stat-invoices-today');
+        const salesEl = document.getElementById('stat-sales-today');
+
+        if (countEl) countEl.innerText = todayCount;
+        if (salesEl) salesEl.innerText = '₹' + todaySales.toFixed(2);
+    } catch (err) {
+        console.error("Error loading dashboard stats:", err);
+    }
 };
 
 window.calculateGST = () => {
