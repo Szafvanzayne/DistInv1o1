@@ -1,4 +1,4 @@
-const CACHE_NAME = 'bigstore-pro-v3';
+const CACHE_NAME = 'bigstore-pro-v4';
 const ASSETS = [
     './',
     './index.html',
@@ -7,7 +7,8 @@ const ASSETS = [
     './db.js',
     './manifest.json',
     './icon-192x192.png',
-    './icon-512x512.png'
+    './icon-512x512.png',
+    './jspdf.umd.min.js'
 ];
 
 // Install Event
