@@ -1,11 +1,13 @@
-const CACHE_NAME = 'bigstore-pro-v1';
+const CACHE_NAME = 'bigstore-pro-v2';
 const ASSETS = [
     './',
     './index.html',
     './style.css',
     './app.js',
     './db.js',
-    './manifest.json'
+    './manifest.json',
+    './icon-192x192.png',
+    './icon-512x512.png'
 ];
 
 // Install Event
