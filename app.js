@@ -19,7 +19,9 @@ window.currentState = {
     currentInvoice: null,    // The invoice being generated
     currentPdfBlob: null,    // The PDF file data
     unsubProducts: null,     // Firebase snapshot listener functions
-    unsubInvoices: null
+    unsubInvoices: null,
+    editingInvoiceId: null,
+    editingInvoiceDate: null
 };
 
 // --- Initialization ---
@@ -815,10 +817,13 @@ window.generateInvoice = async () => {
         totalTaxable += (itemTotal - itemTax);
     });
 
-    // 2. Create Object
+    // 2. Create Object (use existing ID and Date if editing)
+    const activeId = currentState.editingInvoiceId || Date.now().toString();
+    const activeDate = currentState.editingInvoiceDate || new Date().toISOString();
+
     const invoice = {
-        id: Date.now().toString(),
-        date: new Date().toISOString(),
+        id: activeId,
+        date: activeDate,
         customerName: custName,
         items: [...currentState.cart],
         totalAmount: totalAmount,
@@ -829,8 +834,12 @@ window.generateInvoice = async () => {
     // 3. Save
     await db.createInvoice(invoice);
 
-    // 4. Set State (No PDF generation here)
+    // 4. Set State & Clear Cart 
     currentState.currentInvoice = invoice;
+    currentState.cart = [];
+    currentState.editingInvoiceId = null;
+    currentState.editingInvoiceDate = null;
+
     renderView('invoice-preview');
 };
 
@@ -996,7 +1005,11 @@ window.handleSaveProduct = async (e) => {
 
     try {
         await db.addProduct(product);
-        alert('Product Saved!');
+        if (navigator.onLine) {
+            alert('Product Saved!');
+        } else {
+            alert('Saved Offline: Product will sync when internet returns.');
+        }
         renderView('inventory');
     } catch (err) {
         alert('Error saving product: ' + (err.message || "Duplicate?"));
@@ -1074,10 +1087,44 @@ window.renderInvoiceList = (invoices) => {
                         ${new Date(inv.date).toLocaleDateString()}
                     </div>
                  </div>
-                 <div style="text-align: right;">
+                 <div style="text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 8px;">
                     <span style="font-size: 10px; background: #eef2f6; padding: 4px 8px; border-radius: 4px; color: #666;">#${inv.id.slice(-6)}</span>
+                    <div style="display: flex; gap: 8px; margin-top: 5px;">
+                        <button onclick="editInvoice('${inv.id}')" style="background: #eef2f6; border: none; padding: 4px 8px; border-radius: 4px; font-size: 11px; color: #1e3a8a;">EDIT</button>
+                        <button onclick="deleteInvoice('${inv.id}')" style="background: none; border: none; color: #ef4444; font-size: 11px;">DELETE</button>
+                    </div>
                  </div>
             </div>
         </div>
     `).join('');
+};
+
+window.deleteInvoice = async (id) => {
+    if (confirm('Are you sure you want to delete this invoice?')) {
+        await db.deleteInvoice(id);
+        // UI will auto-refresh due to onSnapshot listener
+    }
+};
+
+window.editInvoice = async (id) => {
+    const invoice = await db.getInvoice(id);
+    if (!invoice) {
+        alert("Invoice not found!");
+        return;
+    }
+
+    // Load invoice data into current state to edit
+    window.currentState.editingInvoiceId = invoice.id;
+    window.currentState.editingInvoiceDate = invoice.date;
+    window.currentState.cart = [...invoice.items];
+
+    // Switch to Scan screen
+    renderView('scan');
+
+    // Slight delay to ensure DOM is rendered before setting value
+    setTimeout(() => {
+        const custInput = document.getElementById('cust-name');
+        if (custInput) custInput.value = invoice.customerName || '';
+        renderCart();
+    }, 100);
 };
