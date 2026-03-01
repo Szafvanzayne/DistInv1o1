@@ -1,66 +1,111 @@
 /**
- * BigStore Pro - Database Module
- * Uses IndexedDB via 'idb' library (loaded in index.html)
+ * BigStore Pro - Database Module (Firebase Firestore)
+ * Replaces idb with cloud-syncing Firestore + Local Persistence
  */
 
-const DB_NAME = 'invoicer-pro-db';
-const DB_VERSION = 1;
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
+import { getAuth } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-auth.js";
+import { getFirestore, enableMultiTabIndexedDbPersistence, collection, doc, setDoc, getDoc, getDocs, deleteDoc, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
+
+const firebaseConfig = {
+    apiKey: "AIzaSyB8YYpw79ldinopbmLhccGNXRI-g3HTafQ",
+    authDomain: "bigstore-pro-cloud.firebaseapp.com",
+    projectId: "bigstore-pro-cloud",
+    storageBucket: "bigstore-pro-cloud.firebasestorage.app",
+    messagingSenderId: "305318294275",
+    appId: "1:305318294275:web:2f0b97a246e2f06d3b6f36",
+    measurementId: "G-9H0F6XYBMT"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+export const auth = getAuth(app);
+export const firestore = getFirestore(app);
+
+// Enable offline persistence (cache data for offline use and sync later)
+enableMultiTabIndexedDbPersistence(firestore).catch((err) => {
+    if (err.code == 'failed-precondition') {
+        console.warn('Firebase Persistence: Multiple tabs open, persistence enabled in first tab only.');
+    } else if (err.code == 'unimplemented') {
+        console.warn('Firebase Persistence: Browser does not support offline caching.');
+    }
+});
 
 export const db = {
     async open() {
-        return idb.openDB(DB_NAME, DB_VERSION, {
-            upgrade(db) {
-                // Products Store
-                if (!db.objectStoreNames.contains('products')) {
-                    const productStore = db.createObjectStore('products', { keyPath: 'barcode' });
-                    productStore.createIndex('name', 'name', { unique: false });
-                }
+        return true; // No longer needed, but kept for compatibility with app.js initialization
+    },
 
-                // Invoices Store
-                if (!db.objectStoreNames.contains('invoices')) {
-                    const invoiceStore = db.createObjectStore('invoices', { keyPath: 'id' });
-                    invoiceStore.createIndex('date', 'date', { unique: false });
-                }
-            },
-        });
+    getStoreId() {
+        const user = auth.currentUser;
+        if (!user) throw new Error("User not authenticated.");
+        return user.uid; // Using the authenticated user's UID as their isolated Store ID
     },
 
     // --- Products ---
 
     async addProduct(product) {
-        const dbPromise = await this.open();
-        return dbPromise.put('products', product);
+        const storeId = this.getStoreId();
+        product.storeId = storeId;
+        product.updatedAt = serverTimestamp();
+
+        const docId = `${storeId}_${product.barcode}`;
+        await setDoc(doc(firestore, "products", docId), product);
+        return true;
     },
 
     async getProduct(barcode) {
-        const dbPromise = await this.open();
-        return dbPromise.get('products', barcode);
+        const storeId = this.getStoreId();
+        const docId = `${storeId}_${barcode}`;
+        const docSnap = await getDoc(doc(firestore, "products", docId));
+        return docSnap.exists() ? docSnap.data() : null;
     },
 
     async getAllProducts() {
-        const dbPromise = await this.open();
-        return dbPromise.getAll('products');
+        const storeId = this.getStoreId();
+        const q = query(collection(firestore, "products"), where("storeId", "==", storeId));
+        const querySnapshot = await getDocs(q);
+        const products = [];
+        querySnapshot.forEach((doc) => {
+            products.push(doc.data());
+        });
+        return products;
     },
 
     async deleteProduct(barcode) {
-        const dbPromise = await this.open();
-        return dbPromise.delete('products', barcode);
+        const storeId = this.getStoreId();
+        const docId = `${storeId}_${barcode}`;
+        await deleteDoc(doc(firestore, "products", docId));
+        return true;
     },
 
     // --- Invoices ---
 
     async createInvoice(invoice) {
-        const dbPromise = await this.open();
-        return dbPromise.put('invoices', invoice);
+        const storeId = this.getStoreId();
+        invoice.storeId = storeId;
+        invoice.updatedAt = serverTimestamp();
+
+        const docId = `${storeId}_${invoice.id}`;
+        await setDoc(doc(firestore, "invoices", docId), invoice);
+        return true;
     },
 
     async getAllInvoices() {
-        const dbPromise = await this.open();
-        return dbPromise.getAll('invoices');
+        const storeId = this.getStoreId();
+        const q = query(collection(firestore, "invoices"), where("storeId", "==", storeId));
+        const querySnapshot = await getDocs(q);
+        const invoices = [];
+        querySnapshot.forEach((doc) => {
+            invoices.push(doc.data());
+        });
+        return invoices;
     },
 
     async getInvoice(id) {
-        const dbPromise = await this.open();
-        return dbPromise.get('invoices', id);
+        const storeId = this.getStoreId();
+        const docId = `${storeId}_${id}`;
+        const docSnap = await getDoc(doc(firestore, "invoices", docId));
+        return docSnap.exists() ? docSnap.data() : null;
     }
 };

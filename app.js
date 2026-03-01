@@ -9,7 +9,8 @@
  * 4. Data Persistence (calls to db.js to save to IndexedDB)
  */
 
-import { db } from './db.js';
+import { db, auth } from './db.js';
+import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-auth.js";
 
 // --- State Management ---
 // This object holds the temporary data while the user is using the app.
@@ -32,20 +33,38 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
     }
 
-    // Initialize the IndexedDB database
+    // Initialize the database connection
     await db.open();
     console.log("Database initialized");
 
-    // Small delay to ensure styles are loaded before rendering
-    setTimeout(() => {
-        initApp();
-    }, 500);
-});
-
-function initApp() {
     setupNavigation();
-    renderView('home');
-}
+
+    // Listen to Firebase Auth state
+    onAuthStateChanged(auth, (user) => {
+        if (user) {
+            console.log("User logged in:", user.uid);
+            window.currentState.user = user;
+            // Show lower navigation tools
+            const nav = document.querySelector('.bottom-nav');
+            if (nav) nav.style.display = 'flex';
+
+            // Re-render current view or go home if on login
+            if (window.currentState.view === 'login' || !window.currentState.view) {
+                renderView('home');
+            } else {
+                renderView(window.currentState.view);
+            }
+        } else {
+            console.log("User logged out");
+            window.currentState.user = null;
+            // Hide navigation items so user cannot access inventory without login
+            const nav = document.querySelector('.bottom-nav');
+            if (nav) nav.style.display = 'none';
+
+            renderView('login');
+        }
+    });
+});
 
 function setupNavigation() {
     const navItems = document.querySelectorAll('.nav-item');
@@ -78,6 +97,32 @@ window.renderView = (viewName) => {
     console.log(`Navigating to ${viewName}`);
 
     switch (viewName) {
+        case 'login':
+            app.innerHTML = `
+                <div class="screen active" style="display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 20px; text-align: center; min-height: 80vh;">
+                    <div style="margin-bottom: 30px;">
+                        <span class="material-icons-round" style="font-size: 64px; color: #1e3a8a;">storefront</span>
+                        <h1 style="color: #1e3a8a; margin-top: 10px;">BigStore Pro</h1>
+                        <p style="color: #6b7280;">Secure Cloud Login</p>
+                    </div>
+                    
+                    <form onsubmit="handleAuth(event)" style="width: 100%; max-width: 400px; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); text-align: left;">
+                        <div style="margin-bottom: 15px;">
+                            <label>Email ID</label>
+                            <input type="email" name="email" required placeholder="store@example.com">
+                        </div>
+                        <div style="margin-bottom: 20px;">
+                            <label>Password</label>
+                            <input type="password" name="password" required placeholder="••••••••">
+                        </div>
+                        <div id="auth-error" style="color: red; font-size: 14px; margin-bottom: 15px; display: none;"></div>
+                        <button type="submit" name="action" value="login" onclick="this.form.submitedBtn='login'" class="btn-primary" style="margin-bottom: 10px;">Login securely</button>
+                        <button type="submit" name="action" value="register" onclick="this.form.submitedBtn='register'" class="btn-secondary">Register New Store Account</button>
+                    </form>
+                </div>
+            `;
+            break;
+
         case 'home':
             app.innerHTML = `
                 <div class="screen active" style="padding: 0;">
@@ -456,10 +501,14 @@ window.renderView = (viewName) => {
                     </div>
 
                     <div style="text-align: center; margin-top: 30px; color: var(--text-secondary);">
-                        <p>App Version: <strong>v1.0.0</strong></p>
+                        <p>App Version: <strong>v1.1.0 (Cloud Sync Active)</strong></p>
                         <p style="font-size: 12px; margin-top: 5px;">&copy; 2026 BigStore Pro</p>
                     </div>
                     
+                    <div style="margin-top: 30px;">
+                        <button class="btn-primary" style="background: #ef4444; width: 100%; border-color: #ef4444;" onclick="logout()">Log Out Session</button>
+                    </div>
+
                     <div style="height: 50px;"></div>
                 </div>
             `;
@@ -467,7 +516,33 @@ window.renderView = (viewName) => {
     }
 }
 
-// --- Navigation Helpers ---
+// --- Navigation Helpers & Auth ---
+
+window.handleAuth = async (e) => {
+    e.preventDefault();
+    const email = e.target.email.value;
+    const password = e.target.password.value;
+    const action = e.target.submitedBtn || 'login';
+    const errorDiv = document.getElementById('auth-error');
+    errorDiv.style.display = 'none';
+
+    try {
+        if (action === 'register') {
+            await createUserWithEmailAndPassword(auth, email, password);
+        } else {
+            await signInWithEmailAndPassword(auth, email, password);
+        }
+    } catch (err) {
+        errorDiv.innerText = err.message.replace('Firebase: ', '');
+        errorDiv.style.display = 'block';
+    }
+};
+
+window.logout = async () => {
+    if (confirm("Are you sure you want to log out of this store?")) {
+        await signOut(auth);
+    }
+};
 
 window.showAddProductForm = () => {
     renderView('add-product');
