@@ -50,7 +50,10 @@ export const db = {
         product.updatedAt = serverTimestamp();
 
         const docId = `${storeId}_${product.barcode}`;
-        await setDoc(doc(firestore, "products", docId), product);
+        // Do not await setDoc to prevent offline hanging
+        setDoc(doc(firestore, "products", docId), product).catch(err => {
+            console.error("Failed to sync product to cloud:", err);
+        });
         return true;
     },
 
@@ -102,7 +105,11 @@ export const db = {
         invoice.updatedAt = serverTimestamp();
 
         const docId = `${storeId}_${invoice.id}`;
-        await setDoc(doc(firestore, "invoices", docId), invoice);
+        // Do not await setDoc. Firebase will cache it locally immediately
+        // but the promise only resolves when the server acknowledges it (which hangs offline).
+        setDoc(doc(firestore, "invoices", docId), invoice).catch(err => {
+            console.error("Failed to sync invoice to cloud:", err);
+        });
         return true;
     },
 
