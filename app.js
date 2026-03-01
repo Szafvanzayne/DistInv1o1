@@ -28,12 +28,7 @@ window.currentState = {
 document.addEventListener('DOMContentLoaded', async () => {
     console.log("BigStore Pro Initializing...");
 
-    if (!window.idb) {
-        alert("CRITICAL: Database library (idb) failed to load. Please check your internet connection or CDN.");
-        return;
-    }
-
-    // Initialize the database connection
+    // Initialize the database connection (Firebase)
     await db.open();
     console.log("Database initialized");
 
