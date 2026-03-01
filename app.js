@@ -12,15 +12,14 @@
 import { db, auth } from './db.js';
 import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-auth.js";
 
-// --- State Management ---
-// This object holds the temporary data while the user is using the app.
-// EDITING TIP: If you need to track new global data (e.g. 'currentUser'), add it here.
 window.currentState = {
     view: 'home',            // Current visible screen
     inventory: [],           // List of products (cached)
     cart: [],                // Items currently in the bill
     currentInvoice: null,    // The invoice being generated
-    currentPdfBlob: null     // The PDF file data
+    currentPdfBlob: null,    // The PDF file data
+    unsubProducts: null,     // Firebase snapshot listener functions
+    unsubInvoices: null
 };
 
 // --- Initialization ---
@@ -180,11 +179,15 @@ window.renderView = (viewName) => {
                     </div>
                     
                     <div id="inventory-list" style="padding-bottom: 80px;">
-                        <div class="text-center text-muted">Loading...</div>
+                        <div class="text-center text-muted">Loading live data...</div>
                     </div>
                 </div>
             `;
-            loadInventory();
+            // Attach real-time listener
+            if (window.currentState.unsubProducts) window.currentState.unsubProducts();
+            window.currentState.unsubProducts = db.listenToProducts(products => {
+                renderInventoryList(products);
+            });
             break;
 
         case 'add-product':
@@ -443,11 +446,14 @@ window.renderView = (viewName) => {
                 <div class="screen active">
                     <h1>History</h1>
                     <div id="invoice-list" style="margin-top: 20px; padding-bottom: 80px;">
-                        <div class="text-center text-muted">Loading...</div>
+                        <div class="text-center text-muted">Loading live data...</div>
                     </div>
                 </div>
             `;
-            loadInvoices();
+            if (window.currentState.unsubInvoices) window.currentState.unsubInvoices();
+            window.currentState.unsubInvoices = db.listenToInvoices(invoices => {
+                renderInvoiceList(invoices);
+            });
             break;
 
         case 'settings':
@@ -543,26 +549,30 @@ window.showAddProductForm = () => {
     renderView('add-product');
 };
 
-window.loadDashboardStats = async () => {
+window.loadDashboardStats = () => {
     try {
-        const invoices = await db.getAllInvoices();
-        const todayStr = new Date().toDateString();
+        if (window.currentState.unsubInvoices) window.currentState.unsubInvoices();
 
-        let todayCount = 0;
-        let todaySales = 0;
+        window.currentState.unsubInvoices = db.listenToInvoices(invoices => {
+            const todayStr = new Date().toDateString();
 
-        invoices.forEach(inv => {
-            if (new Date(inv.date).toDateString() === todayStr) {
-                todayCount++;
-                todaySales += inv.totalAmount;
-            }
+            let todayCount = 0;
+            let todaySales = 0;
+
+            invoices.forEach(inv => {
+                if (new Date(inv.date).toDateString() === todayStr) {
+                    todayCount++;
+                    todaySales += inv.totalAmount;
+                }
+            });
+
+            const countEl = document.getElementById('stat-invoices-today');
+            const salesEl = document.getElementById('stat-sales-today');
+
+            if (countEl) countEl.innerText = todayCount;
+            if (salesEl) salesEl.innerText = '₹' + todaySales.toFixed(2);
         });
 
-        const countEl = document.getElementById('stat-invoices-today');
-        const salesEl = document.getElementById('stat-sales-today');
-
-        if (countEl) countEl.innerText = todayCount;
-        if (salesEl) salesEl.innerText = '₹' + todaySales.toFixed(2);
     } catch (err) {
         console.error("Error loading dashboard stats:", err);
     }
@@ -1016,11 +1026,10 @@ window.adjustStock = async (barcode, currentStock) => {
     }
 };
 
-window.loadInventory = async () => {
+window.renderInventoryList = (products) => {
     const list = document.getElementById('inventory-list');
     if (!list) return;
 
-    const products = await db.getAllProducts();
     if (products.length === 0) {
         list.innerHTML = `<div style="text-align: center; margin-top: 50px; color: var(--text-muted);">No products yet</div>`;
         return;
@@ -1044,11 +1053,10 @@ window.loadInventory = async () => {
     `).join('');
 };
 
-window.loadInvoices = async () => {
+window.renderInvoiceList = (invoices) => {
     const list = document.getElementById('invoice-list');
     if (!list) return;
 
-    const invoices = await db.getAllInvoices();
     invoices.sort((a, b) => new Date(b.date) - new Date(a.date));
 
     if (invoices.length === 0) {

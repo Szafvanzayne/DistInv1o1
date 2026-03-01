@@ -5,7 +5,7 @@
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
 import { getAuth } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-auth.js";
-import { getFirestore, enableMultiTabIndexedDbPersistence, collection, doc, setDoc, getDoc, getDocs, deleteDoc, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
+import { getFirestore, enableMultiTabIndexedDbPersistence, collection, doc, setDoc, getDoc, getDocs, deleteDoc, query, where, serverTimestamp, onSnapshot } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
 
 const firebaseConfig = {
     apiKey: "AIzaSyB8YYpw79ldinopbmLhccGNXRI-g3HTafQ",
@@ -72,6 +72,21 @@ export const db = {
         return products;
     },
 
+    // New real-time listener for products
+    listenToProducts(callback) {
+        const storeId = this.getStoreId();
+        const q = query(collection(firestore, "products"), where("storeId", "==", storeId));
+        return onSnapshot(q, (querySnapshot) => {
+            const products = [];
+            querySnapshot.forEach((doc) => {
+                products.push(doc.data());
+            });
+            callback(products);
+        }, (error) => {
+            console.error("Firebase sync error on products:", error);
+        });
+    },
+
     async deleteProduct(barcode) {
         const storeId = this.getStoreId();
         const docId = `${storeId}_${barcode}`;
@@ -100,6 +115,21 @@ export const db = {
             invoices.push(doc.data());
         });
         return invoices;
+    },
+
+    // New real-time listener for invoices
+    listenToInvoices(callback) {
+        const storeId = this.getStoreId();
+        const q = query(collection(firestore, "invoices"), where("storeId", "==", storeId));
+        return onSnapshot(q, (querySnapshot) => {
+            const invoices = [];
+            querySnapshot.forEach((doc) => {
+                invoices.push(doc.data());
+            });
+            callback(invoices);
+        }, (error) => {
+            console.error("Firebase sync error on invoices:", error);
+        });
     },
 
     async getInvoice(id) {
