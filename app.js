@@ -868,10 +868,15 @@ window.generateInvoice = async () => {
         totalTaxable: totalTaxable
     };
 
-    // 3. Save
+    // 3. Save Invoice
     await db.createInvoice(invoice);
 
-    // 4. Set State & Clear Cart 
+    // 4. Deduct Stock for each item
+    for (const item of currentState.cart) {
+        db.deductStock(item.barcode, item.qty);
+    }
+
+    // 5. Set State & Clear Cart 
     currentState.currentInvoice = invoice;
     currentState.cart = [];
     currentState.editingInvoiceId = null;
