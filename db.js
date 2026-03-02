@@ -144,5 +144,14 @@ export const db = {
         const docId = `${storeId}_${id}`;
         const docSnap = await getDoc(doc(firestore, "invoices", docId));
         return docSnap.exists() ? docSnap.data() : null;
+    },
+
+    async deleteInvoice(id) {
+        const storeId = this.getStoreId();
+        const docId = `${storeId}_${id}`;
+        deleteDoc(doc(firestore, "invoices", docId)).catch(err => {
+            console.error("Failed to delete invoice:", err);
+        });
+        return true;
     }
 };

@@ -21,5 +21,10 @@ This document serves as the final checklist of all features, architecture change
 - [x] Added `purpose: any maskable` to icons.
 - [x] Automatically force mobile APKs to bust aggressive service worker caches by injecting `onupdatefound` and `window.location.reload()` logic directly into `index.html`. 
 
+## 4. UX & Management (Verified)
+- [x] **Invoice Management**: Added EDIT and DELETE buttons to History. Users can now correct mistakes by reloading bills into the cart.
+- [x] **Smart Offline UX**: Added real-time network detection. The app now specifically notifies the user when a product is saved "Offline" vs "Cloud".
+- [x] **Cache Busting**: Integrated versioned script imports (`?v=2.2`) to ensure UI updates are immediate across all devices.
+
 ---
 **Status:** All Phase 2 objectives have been met and verified. The codebase has been tagged as `v2.1` on GitHub.

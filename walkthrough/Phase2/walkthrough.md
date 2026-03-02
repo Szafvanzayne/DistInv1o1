@@ -35,3 +35,11 @@ We chose **Firebase (Firestore & Auth)** as the Backend-as-a-Service to achieve 
 *   **Upgraded Queries**: Replaced static one-time `getDocs()` fetches in `db.js` with Firebase's native `onSnapshot()` listeners.
 *   **Instant Multi-Device Sync**: The UI in `app.js` (`renderInventoryList`, `renderInvoiceList`, and `loadDashboardStats`) now automatically re-renders the moment any user on any device adds or edits a product/invoice under the same `storeId`.
 *   **Status**: Successfully tested and verified by the user. The codebase is tagged as **Phase 2.1**.
+
+### 5. Data Management & UX Polish
+*   **Invoice Corrections**: Built a full Edit/Delete suite in the History view. Deleting an invoice removes it from the cloud; Editing it reloads the items into the active cart and overwrites the previous record upon re-saving.
+*   **Offline Awareness**: Implemented `navigator.onLine` checks to provide context-aware feedback (e.g., "Saved Offline" vs "Saved to Cloud").
+*   **Cache Resilience**: Added automated cache-busting logic to `index.html` to prevent stagnant UI updates on mobile devices.
+
+---
+**Phase 2 Status: COMPLETE & VERIFIED**
