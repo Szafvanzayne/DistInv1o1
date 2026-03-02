@@ -7,29 +7,6 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebas
 import { getAuth } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-auth.js";
 import { getFirestore, enableMultiTabIndexedDbPersistence, collection, doc, setDoc, getDoc, getDocs, deleteDoc, query, where, serverTimestamp, onSnapshot, updateDoc, increment } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
 
-// ... [existing config and initialization] ...
-
-    async deductStock(barcode, qty) {
-    try {
-        const storeId = this.getStoreId();
-        const docId = `${storeId}_${barcode}`;
-        const productRef = doc(firestore, "products", docId);
-
-        // Atomic decrement using increment(-qty)
-        // This works offline and syncs correctly
-        updateDoc(productRef, {
-            stock: increment(-qty),
-            updatedAt: serverTimestamp()
-        }).catch(err => {
-            console.error(`Failed to deduct stock for ${barcode}:`, err);
-        });
-        return true;
-    } catch (err) {
-        console.error("Error in deductStock:", err);
-        return false;
-    }
-}
-};
 
 const firebaseConfig = {
     apiKey: "AIzaSyB8YYpw79ldinopbmLhccGNXRI-g3HTafQ",
@@ -180,6 +157,27 @@ export const db = {
         } catch (err) {
             console.error("Failed to delete invoice:", err);
             throw err;
+        }
+    },
+
+    async deductStock(barcode, qty) {
+        try {
+            const storeId = this.getStoreId();
+            const docId = `${storeId}_${barcode}`;
+            const productRef = doc(firestore, "products", docId);
+
+            // Atomic decrement using increment(-qty)
+            // This works offline and syncs correctly
+            updateDoc(productRef, {
+                stock: increment(-qty),
+                updatedAt: serverTimestamp()
+            }).catch(err => {
+                console.error(`Failed to deduct stock for ${barcode}:`, err);
+            });
+            return true;
+        } catch (err) {
+            console.error("Error in deductStock:", err);
+            return false;
         }
     }
 };
