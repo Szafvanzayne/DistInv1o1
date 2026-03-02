@@ -9,7 +9,7 @@
  * 4. Data Persistence (calls to db.js to save to IndexedDB)
  */
 
-import { db, auth } from './db.js';
+import { db, auth } from './db.js?v=2.3';
 import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-auth.js";
 
 window.currentState = {
