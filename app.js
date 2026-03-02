@@ -87,8 +87,20 @@ function setupNavigation() {
 // 1. Add a new 'case "new-page-name":'
 // 2. Define the HTML in app.innerHTML = ...
 // 3. Call renderView('new-page-name') to go there.
+const cleanupListeners = () => {
+    if (window.currentState.unsubInvoices) {
+        window.currentState.unsubInvoices();
+        window.currentState.unsubInvoices = null;
+    }
+    if (window.currentState.unsubProducts) {
+        window.currentState.unsubProducts();
+        window.currentState.unsubProducts = null;
+    }
+};
+
 window.renderView = (viewName) => {
     const app = document.getElementById('app');
+    cleanupListeners(); // Stop background syncing to old DOM elements
     app.innerHTML = ''; // Clear current screen
     console.log(`Navigating to ${viewName}`);
 
@@ -134,7 +146,7 @@ window.renderView = (viewName) => {
                             </div>
                         </header>
 
-                        <!-- Stats Cards -->
+                        <!-- Stats Cards (2x2 Grid) -->
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 30px;">
                             <div class="stat-card">
                                 <span class="material-icons-round" style="color: #1e3a8a; font-size: 24px;">receipt_long</span>
@@ -145,6 +157,16 @@ window.renderView = (viewName) => {
                                 <span class="material-icons-round" style="color: #10b981; font-size: 24px;">payments</span>
                                 <h2 id="stat-sales-today" style="color: #1f2937; margin-top: 10px;">₹0</h2>
                                 <span style="color: #6b7280; font-size: 12px;">Sales Today</span>
+                            </div>
+                            <div class="stat-card">
+                                <span class="material-icons-round" style="color: #f59e0b; font-size: 24px;">inventory_2</span>
+                                <h2 id="stat-total-products" style="color: #1f2937; margin-top: 10px;">0</h2>
+                                <span style="color: #6b7280; font-size: 12px;">Items in Store</span>
+                            </div>
+                            <div class="stat-card">
+                                <span class="material-icons-round" style="color: #ef4444; font-size: 24px;">warning_amber</span>
+                                <h2 id="stat-low-stock" style="color: #1f2937; margin-top: 10px;">0</h2>
+                                <span style="color: #6b7280; font-size: 12px;">Low Stock Alerts</span>
                             </div>
                         </div>
 
@@ -553,8 +575,11 @@ window.showAddProductForm = () => {
 
 window.loadDashboardStats = () => {
     try {
+        // Dashboard uses both, so ensure we don't have dangling listeners
         if (window.currentState.unsubInvoices) window.currentState.unsubInvoices();
+        if (window.currentState.unsubProducts) window.currentState.unsubProducts();
 
+        // 1. Listen to Invoices (Sales Stats)
         window.currentState.unsubInvoices = db.listenToInvoices(invoices => {
             const todayStr = new Date().toDateString();
 
@@ -564,7 +589,7 @@ window.loadDashboardStats = () => {
             invoices.forEach(inv => {
                 if (new Date(inv.date).toDateString() === todayStr) {
                     todayCount++;
-                    todaySales += inv.totalAmount;
+                    todaySales += parseFloat(inv.totalAmount || 0);
                 }
             });
 
@@ -573,6 +598,18 @@ window.loadDashboardStats = () => {
 
             if (countEl) countEl.innerText = todayCount;
             if (salesEl) salesEl.innerText = '₹' + todaySales.toFixed(2);
+        });
+
+        // 2. Listen to Products (Inventory Stats)
+        window.currentState.unsubProducts = db.listenToProducts(products => {
+            let totalItems = products.length;
+            let lowStockCount = products.filter(p => p.stock < 5).length;
+
+            const totalEl = document.getElementById('stat-total-products');
+            const lowEl = document.getElementById('stat-low-stock');
+
+            if (totalEl) totalEl.innerText = totalItems;
+            if (lowEl) lowEl.innerText = lowStockCount;
         });
 
     } catch (err) {
