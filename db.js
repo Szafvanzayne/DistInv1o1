@@ -147,11 +147,15 @@ export const db = {
     },
 
     async deleteInvoice(id) {
-        const storeId = this.getStoreId();
-        const docId = `${storeId}_${id}`;
-        deleteDoc(doc(firestore, "invoices", docId)).catch(err => {
+        try {
+            const storeId = this.getStoreId();
+            const docId = `${storeId}_${id}`;
+            console.log("Attempting to delete invoice:", docId);
+            await deleteDoc(doc(firestore, "invoices", docId));
+            return true;
+        } catch (err) {
             console.error("Failed to delete invoice:", err);
-        });
-        return true;
+            throw err;
+        }
     }
 };

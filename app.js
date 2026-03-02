@@ -1101,8 +1101,12 @@ window.renderInvoiceList = (invoices) => {
 
 window.deleteInvoice = async (id) => {
     if (confirm('Are you sure you want to delete this invoice?')) {
-        await db.deleteInvoice(id);
-        // UI will auto-refresh due to onSnapshot listener
+        try {
+            await db.deleteInvoice(id);
+            // UI will auto-refresh due to onSnapshot listener
+        } catch (err) {
+            alert("Error deleting invoice: " + err.message);
+        }
     }
 };
 
