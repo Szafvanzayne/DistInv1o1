@@ -452,8 +452,8 @@ window.renderView = (viewName) => {
                              <button onclick="shareInvoice('download', this)" style="background: #1e3a8a; color: white; border: none; padding: 12px; border-radius: 6px; font-weight: 600; font-size: 13px; display: flex; flex-direction: column; align-items: center; gap: 4px;">
                                 <span class="material-icons-round">download</span> Download
                             </button>
-                             <button onclick="shareInvoice('native', this)" style="background: var(--bg-surface-2); color: var(--text-main); border: none; padding: 12px; border-radius: 6px; font-weight: 600; font-size: 13px; display: flex; flex-direction: column; align-items: center; gap: 4px;">
-                                <span class="material-icons-round">share</span> More
+                             <button onclick="shareInvoice('print', this)" style="background: var(--bg-surface-2); color: var(--text-main); border: none; padding: 12px; border-radius: 6px; font-weight: 600; font-size: 13px; display: flex; flex-direction: column; align-items: center; gap: 4px;">
+                                <span class="material-icons-round">print</span> Print
                             </button>
                         </div>
                     </div>
@@ -992,6 +992,22 @@ window.shareInvoice = async (method, btn) => {
             link.href = URL.createObjectURL(blob);
             link.download = filename;
             link.click();
+        }
+        else if (method === 'print') {
+            const pdfUrl = URL.createObjectURL(blob);
+            const printFrame = document.createElement('iframe');
+            printFrame.style.display = 'none';
+            printFrame.src = pdfUrl;
+            document.body.appendChild(printFrame);
+
+            printFrame.onload = () => {
+                printFrame.contentWindow.print();
+                // Optional: cleanup after a delay to ensure print dialog opened
+                setTimeout(() => {
+                    document.body.removeChild(printFrame);
+                    URL.revokeObjectURL(pdfUrl);
+                }, 10000);
+            };
         }
         else if (method === 'native') {
             if (navigator.canShare && navigator.canShare({ files: [file] })) {
