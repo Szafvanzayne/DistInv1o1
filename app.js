@@ -1224,10 +1224,12 @@ window.editInvoice = async (id) => {
     // Switch to Scan screen
     renderView('scan');
 
-    // Slight delay to ensure DOM is rendered before setting value
+    // Slight delay to ensure DOM is rendered before setting values
     setTimeout(() => {
         const custInput = document.getElementById('cust-name');
+        const phoneInput = document.getElementById('cust-phone');
         if (custInput) custInput.value = invoice.customerName || '';
+        if (phoneInput) phoneInput.value = invoice.customerPhone || '';
         renderCart();
     }, 100);
 };
