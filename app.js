@@ -332,7 +332,8 @@ window.renderView = (viewName) => {
                     <!-- Customer Info -->
                     <div class="card" style="padding: 15px; margin-bottom: 10px;">
                         <label>Customer Name</label>
-                        <input type="text" id="cust-name" placeholder="Walk-in Customer" style="margin-bottom: 0;">
+                        <input type="text" id="cust-name" placeholder="Customer Name" style="margin-bottom: 10px;">
+                        <input type="tel" id="cust-phone" placeholder="Contact Number (Optional)" style="margin-bottom: 0;">
                     </div>
 
                     <!-- Scan / Search Area -->
@@ -405,6 +406,7 @@ window.renderView = (viewName) => {
                             <div>
                                 <div style="color: #94a3b8; font-size: 11px; text-transform: uppercase;">Customer</div>
                                 <div style="font-weight: 600;">${inv.customerName}</div>
+                                ${inv.customerPhone ? `<div style="font-size: 11px; color: #64748b;">${inv.customerPhone}</div>` : ''}
                             </div>
                             <div style="text-align: right;">
                                 <div style="color: #94a3b8; font-size: 11px; text-transform: uppercase;">Date</div>
@@ -844,6 +846,7 @@ window.saveSettings = (e) => {
 
 window.generateInvoice = async () => {
     const custName = document.getElementById('cust-name').value || 'Guest';
+    const custPhone = document.getElementById('cust-phone').value || '';
     if (currentState.cart.length === 0) {
         alert("Cart is empty!");
         return;
@@ -870,6 +873,7 @@ window.generateInvoice = async () => {
         id: activeId,
         date: activeDate,
         customerName: custName,
+        customerPhone: custPhone,
         items: [...currentState.cart],
         totalAmount: totalAmount,
         totalTax: totalGST,
@@ -925,12 +929,20 @@ async function getGeneratedPdfBlob() {
 
     // Info
     doc.line(10, 48, 200, 48);
+    doc.setFontSize(10);
     doc.text(`Invoice #: ${invoice.id}`, 14, 56);
-    doc.text(`Date: ${new Date(invoice.date).toLocaleDateString()}`, 14, 62);
-    doc.text(`Customer: ${invoice.customerName}`, 14, 68);
+    doc.text(`Date: ${new Date(invoice.date).toLocaleDateString()}`, 14, 61);
 
-    // Table
-    let y = 80;
+    doc.setFont(undefined, 'bold');
+    doc.text(`Customer: ${invoice.customerName}`, 14, 70);
+    doc.setFont(undefined, 'normal');
+    if (invoice.customerPhone) {
+        doc.text(`Phone: ${invoice.customerPhone}`, 14, 75);
+    }
+
+    let y = 80; // This y is for the table header
+    doc.line(10, y, 200, y); // Line before table header
+    y += 10; // Move y down for table header
     doc.setFillColor(240, 240, 240);
     doc.rect(10, y - 5, 190, 8, 'F');
     doc.setFont(undefined, 'bold');
@@ -984,10 +996,13 @@ window.shareInvoice = async (method, btn) => {
         }
         else if (method === 'whatsapp') {
             const text = `Invoice for ${invoice.customerName}: ₹${invoice.totalAmount}.\n(Please download attachment)`;
+            const cleanPhone = invoice.customerPhone ? invoice.customerPhone.replace(/\D/g, '') : '';
+            const waUrl = cleanPhone ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(text)}` : `https://wa.me/?text=${encodeURIComponent(text)}`;
+
             if (navigator.canShare && navigator.canShare({ files: [file] })) {
                 await navigator.share({ title: 'Invoice', text: text, files: [file] });
             } else {
-                window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+                window.open(waUrl, '_blank');
                 const link = document.createElement('a');
                 link.href = URL.createObjectURL(blob);
                 link.download = filename;
