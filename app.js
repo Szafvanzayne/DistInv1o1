@@ -526,7 +526,7 @@ window.renderView = (viewName) => {
                     </div>
 
                     <div style="text-align: center; margin-top: 30px; color: var(--text-secondary);">
-                        <p>App Version: <strong>v1.1.0 (Cloud Sync Active)</strong></p>
+                        <p>App Version: <strong>v2.6.0 (Cloud Sync Active)</strong></p>
                         <p style="font-size: 12px; margin-top: 5px;">&copy; 2026 BigStore Pro</p>
                     </div>
                     
