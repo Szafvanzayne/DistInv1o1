@@ -964,6 +964,8 @@ window.shareInvoice = async (method, btn) => {
     const invoice = currentState.currentInvoice;
     if (!invoice) return;
 
+    const shopSettings = JSON.parse(localStorage.getItem('shopSettings')) || { name: 'BigStore Pro' };
+
     // Show loading text
     const originalBtnText = btn.innerHTML;
     btn.innerHTML = 'Wait...';
