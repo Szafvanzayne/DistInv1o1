@@ -377,7 +377,12 @@ window.renderView = (viewName) => {
             const inv = currentState.currentInvoice;
             if (!inv) { renderView('home'); return; }
 
-            const shopSettings = JSON.parse(localStorage.getItem('shopSettings')) || { name: 'BigStore Pro' };
+            const shopSettings = JSON.parse(localStorage.getItem('shopSettings')) || {
+                name: 'BigStore Pro',
+                gstin: 'NOT SET',
+                address: '',
+                phone: ''
+            };
 
             app.innerHTML = `
                 <div class="screen active" style="padding-bottom: 20px;">
@@ -392,6 +397,7 @@ window.renderView = (viewName) => {
                     <div class="card" style="padding: 20px; font-family: 'Inter', sans-serif; border: 1px solid #e2e8f0; background: #fff;">
                         <div style="text-align: center; margin-bottom: 20px;">
                             <h2 style="color: #1e3a8a; margin: 0; text-transform: uppercase;">${shopSettings.name}</h2>
+                            <p style="font-size: 11px; color: #64748b; margin-top: 2px;">${shopSettings.address} ${shopSettings.phone ? ' | ' + shopSettings.phone : ''}</p>
                             <p style="font-size: 11px; color: #64748b; margin-top: 5px;">#${inv.id}</p>
                         </div>
 
@@ -893,8 +899,8 @@ async function getGeneratedPdfBlob() {
     if (!invoice) return null;
 
     const settings = JSON.parse(localStorage.getItem('shopSettings')) || {
-        name: 'My Shop Name',
-        gstin: '29ABCDE1234F1Z5',
+        name: 'BigStore Pro',
+        gstin: 'NOT SET',
         address: '',
         phone: ''
     };
