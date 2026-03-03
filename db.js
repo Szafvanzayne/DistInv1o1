@@ -33,14 +33,70 @@ enableMultiTabIndexedDbPersistence(firestore).catch((err) => {
 });
 
 export const db = {
+    profile: null, // Cached user profile (role, storeId)
+
     async open() {
         return true; // No longer needed, but kept for compatibility with app.js initialization
     },
 
+    async fetchUserProfile(uid, email) {
+        try {
+            const docSnap = await getDoc(doc(firestore, "users", uid));
+            if (docSnap.exists()) {
+                this.profile = docSnap.data();
+                return this.profile;
+            } else {
+                // Check if this user was invited as staff
+                if (email) {
+                    const q = query(collection(firestore, "staff_invites"), where("email", "==", email));
+                    const inviteSnap = await getDocs(q);
+                    if (!inviteSnap.empty) {
+                        const invite = inviteSnap.docs[0].data();
+                        this.profile = {
+                            role: 'staff',
+                            storeId: invite.storeId,
+                            invitedBy: invite.invitedBy,
+                            createdAt: serverTimestamp()
+                        };
+                        await setDoc(doc(firestore, "users", uid), this.profile);
+                        // Optional: delete invite
+                        return this.profile;
+                    }
+                }
+
+                // Default profile for new registrations (Store Admin)
+                this.profile = {
+                    role: 'store_admin',
+                    storeId: uid,
+                    createdAt: serverTimestamp()
+                };
+                await setDoc(doc(firestore, "users", uid), this.profile);
+                return this.profile;
+            }
+        } catch (err) {
+            console.error("Error fetching user profile:", err);
+            return { role: 'staff', storeId: uid }; // Fallback safety
+        }
+    },
+
     getStoreId() {
+        if (this.profile && this.profile.role === 'super_admin' && this.profile.activeStoreId) {
+            return this.profile.activeStoreId;
+        }
+        if (this.profile && this.profile.storeId) {
+            return this.profile.storeId;
+        }
         const user = auth.currentUser;
         if (!user) throw new Error("User not authenticated.");
         return user.uid; // Using the authenticated user's UID as their isolated Store ID
+    },
+
+    isAdmin() {
+        return this.profile && (this.profile.role === 'store_admin' || this.profile.role === 'super_admin');
+    },
+
+    isSuperAdmin() {
+        return this.profile && this.profile.role === 'super_admin';
     },
 
     // --- Products ---
@@ -179,5 +235,42 @@ export const db = {
             console.error("Error in deductStock:", err);
             return false;
         }
+    },
+
+    // --- Staff Management ---
+
+    async addStaffInvite(email) {
+        const storeId = this.getStoreId();
+        const inviteId = `${storeId}_${email.replace(/[@.]/g, '_')}`;
+        await setDoc(doc(firestore, "staff_invites", inviteId), {
+            email: email,
+            storeId: storeId,
+            invitedBy: auth.currentUser.uid,
+            createdAt: serverTimestamp()
+        });
+        return true;
+    },
+
+    listenToStaff(callback) {
+        const storeId = this.getStoreId();
+        const q = query(collection(firestore, "users"), where("storeId", "==", storeId));
+        return onSnapshot(q, (querySnapshot) => {
+            const staff = [];
+            querySnapshot.forEach((doc) => {
+                const data = doc.data();
+                data.uid = doc.id;
+                staff.push(data);
+            });
+            callback(staff);
+        });
+    },
+
+    // --- Super Admin Capabilities ---
+
+    async getAllStores() {
+        if (!this.isSuperAdmin()) return [];
+        const q = query(collection(firestore, "users"), where("role", "==", "store_admin"));
+        const snap = await getDocs(q);
+        return snap.docs.map(d => ({ id: d.id, ...d.data() }));
     }
 };

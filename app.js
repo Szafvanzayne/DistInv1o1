@@ -36,13 +36,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     setupNavigation();
 
     // Listen to Firebase Auth state
-    onAuthStateChanged(auth, (user) => {
+    onAuthStateChanged(auth, async (user) => {
         if (user) {
             console.log("User logged in:", user.uid);
             window.currentState.user = user;
+
+            // Fetch User Profile (Role-Based Access)
+            const profile = await db.fetchUserProfile(user.uid, user.email);
+            console.log("User profile loaded:", profile.role);
+
             // Show lower navigation tools
             const nav = document.querySelector('.bottom-nav');
-            if (nav) nav.style.display = 'flex';
+            if (nav) {
+                nav.style.display = 'flex';
+                // Hide Management/Staff icons based on role
+                updateNavVisibility(profile.role);
+            }
 
             // Re-render current view or go home if on login
             if (window.currentState.view === 'login' || !window.currentState.view) {
@@ -53,6 +62,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         } else {
             console.log("User logged out");
             window.currentState.user = null;
+            db.profile = null; // Clear cached profile
             // Hide navigation items so user cannot access inventory without login
             const nav = document.querySelector('.bottom-nav');
             if (nav) nav.style.display = 'none';
@@ -61,6 +71,26 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 });
+
+function updateNavVisibility(role) {
+    const navItems = document.querySelectorAll('.nav-item');
+    navItems.forEach(item => {
+        const target = item.dataset.target;
+        // Manage view visibility
+        if (role === 'staff') {
+            const restricted = ['management', 'reports'];
+            if (restricted.includes(target)) {
+                item.style.display = 'none';
+            } else {
+                item.style.display = 'flex';
+            }
+        } else if (role === 'store_admin') {
+            item.style.display = 'flex';
+        } else if (role === 'super_admin') {
+            item.style.display = 'flex';
+        }
+    });
+}
 
 function setupNavigation() {
     const navItems = document.querySelectorAll('.nav-item');
@@ -136,7 +166,7 @@ window.renderView = (viewName) => {
                 <div class="screen active" style="padding: 0;">
                     <div class="wave-header"></div>
                     <div style="position: relative; z-index: 2; padding: 20px;">
-                        <header style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; margin-top: 10px;">
+                        <header style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; margin-top: 10px;">
                             <div>
                                 <h1 style="color: white; margin-bottom: 5px;">Dashboard</h1>
                                 <p style="color: rgba(255,255,255,0.8); font-size: 14px;">Welcome Back</p>
@@ -146,6 +176,15 @@ window.renderView = (viewName) => {
                             </div>
                         </header>
 
+                        ${db.isSuperAdmin() ? `
+                            <div class="card" style="margin-bottom: 20px; padding: 15px; background: rgba(255,255,255,0.2); backdrop-filter: blur(10px); color: white; border: none;">
+                                <label style="color: white; font-size: 12px; margin-bottom: 8px; display: block;">SUPER ADMIN: View Store</label>
+                                <select id="store-selector" onchange="setActiveStore(this.value)" style="width: 100%; padding: 10px; border-radius: 8px; border: none; background: white; color: #1e3a8a; font-weight: 600;">
+                                    <option value="">My Master ID (${window.currentState.user.uid.slice(0, 8)})</option>
+                                    <option disabled>Loading other stores...</option>
+                                </select>
+                            </div>
+                        ` : ''}
                         <!-- Stats Cards (2x2 Grid) -->
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 30px;">
                             <div class="stat-card">
@@ -190,6 +229,7 @@ window.renderView = (viewName) => {
                 </div>
             `;
             loadDashboardStats();
+            if (db.isSuperAdmin()) loadStoreSelector();
             break;
 
         case 'inventory':
@@ -475,10 +515,79 @@ window.renderView = (viewName) => {
             `;
             break;
 
+        case 'reports':
+            if (db.profile.role === 'staff') { renderView('home'); return; }
+            app.innerHTML = `
+                <div class="screen active">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <h1>Analytics</h1>
+                         <button class="btn-secondary" style="width: auto; padding: 5px 15px;" onclick="renderView('invoices')">
+                            <span class="material-icons-round" style="font-size: 18px; vertical-align: middle;">receipt_long</span> History
+                        </button>
+                    </div>
+
+                    <div class="card" style="padding: 15px; margin-bottom: 20px;">
+                        <h3 style="margin-bottom: 15px; color: #1e3a8a;">Sales Trend (Today)</h3>
+                        <canvas id="salesChart" height="200"></canvas>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
+                        <div class="stat-card">
+                            <span style="font-size: 12px; color: #6b7280;">Avg. Bill Value</span>
+                            <h2 id="report-avg-bill">₹0</h2>
+                        </div>
+                        <div class="stat-card">
+                            <span style="font-size: 12px; color: #6b7280;">Total Items Sold</span>
+                            <h2 id="report-total-items">0</h2>
+                        </div>
+                    </div>
+
+                    <div class="card" style="padding: 15px;">
+                        <h3 style="margin-bottom: 15px; color: #1e3a8a;">Top Products</h3>
+                        <div id="top-products-list">
+                            <!-- Top 3 products placeholder -->
+                            <div class="text-center text-muted">Calculating...</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            if (window.currentState.unsubReports) window.currentState.unsubReports();
+            window.currentState.unsubReports = db.listenToInvoices(invoices => {
+                renderReportsDashboard(invoices);
+            });
+            break;
+
+        case 'management':
+            if (db.profile.role === 'staff') { renderView('home'); return; }
+            app.innerHTML = `
+                <div class="screen active">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <h1>Staff Management</h1>
+                        <button class="btn-primary" style="width: auto; padding: 10px 20px;" onclick="showAddStaffModal()">
+                            + Add Staff
+                        </button>
+                    </div>
+ 
+                    <div id="staff-list" style="margin-top: 20px; padding-bottom: 80px;">
+                        <div class="text-center text-muted">Loading staff...</div>
+                    </div>
+                </div>
+            `;
+            if (window.currentState.unsubStaff) window.currentState.unsubStaff();
+            window.currentState.unsubStaff = db.listenToStaff(staff => {
+                renderStaffList(staff);
+            });
+            break;
+
         case 'invoices':
             app.innerHTML = `
                 <div class="screen active">
-                    <h1>History</h1>
+                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px;">
+                        <button onclick="renderView('reports')" style="background:none; border:none; padding:0;">
+                            <span class="material-icons-round" style="color: var(--text-main);">arrow_back</span>
+                        </button>
+                        <h1>History</h1>
+                    </div>
                     <div id="invoice-list" style="margin-top: 20px; padding-bottom: 80px;">
                         <div class="text-center text-muted">Loading live data...</div>
                     </div>
@@ -563,7 +672,16 @@ window.handleAuth = async (e) => {
 
     try {
         if (action === 'register') {
-            await createUserWithEmailAndPassword(auth, email, password);
+            const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+            // Create initial profile in Firestore
+            const { doc, setDoc, serverTimestamp } = await import("https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js");
+            const { firestore } = await import('./db.js?v=2.3');
+            await setDoc(doc(firestore, "users", userCredential.user.uid), {
+                email: email,
+                role: 'store_admin', // Default role
+                storeId: userCredential.user.uid,
+                createdAt: serverTimestamp()
+            });
         } else {
             await signInWithEmailAndPassword(auth, email, password);
         }
@@ -637,6 +755,181 @@ window.calculateGST = () => {
     document.getElementById('p-gst').value = gstAmt.toFixed(2);
     document.getElementById('p-cgst').value = half.toFixed(2);
     document.getElementById('p-sgst').value = half.toFixed(2);
+};
+
+// --- Super Admin Functions ---
+
+window.loadStoreSelector = async () => {
+    const stores = await db.getAllStores();
+    const selector = document.getElementById('store-selector');
+    if (!selector) return;
+
+    selector.innerHTML = `<option value="">My Master ID (${window.currentState.user.uid.slice(0, 8)})</option>`;
+    stores.forEach(store => {
+        if (store.id !== window.currentState.user.uid) {
+            selector.innerHTML += `<option value="${store.id}" ${db.profile.activeStoreId === store.id ? 'selected' : ''}>Store: ${store.email || store.id.slice(0, 8)}</option>`;
+        }
+    });
+};
+
+window.setActiveStore = (storeId) => {
+    db.profile.activeStoreId = storeId || null;
+    renderView('home'); // Refresh everything for the new store
+};
+
+// --- Reports & Charts ---
+
+window.renderReportsDashboard = (invoices) => {
+    const today = new Date().toDateString();
+    const todayInvoices = invoices.filter(inv => new Date(inv.date).toDateString() === today);
+
+    // Calculate Stats
+    let totalItems = 0;
+    let totalSales = 0;
+    const productSales = {}; // barcode -> {name: '...', qty: 0}
+
+    todayInvoices.forEach(inv => {
+        totalSales += parseFloat(inv.totalAmount || 0);
+        inv.items.forEach(item => {
+            totalItems += item.qty;
+            if (!productSales[item.barcode]) {
+                productSales[item.barcode] = { name: item.name, qty: 0 };
+            }
+            productSales[item.barcode].qty += item.qty;
+        });
+    });
+
+    const avgBill = todayInvoices.length > 0 ? (totalSales / todayInvoices.length) : 0;
+
+    // Update UI
+    const avgEl = document.getElementById('report-avg-bill');
+    const itemsEl = document.getElementById('report-total-items');
+    if (avgEl) avgEl.innerText = '₹' + avgBill.toFixed(0);
+    if (itemsEl) itemsEl.innerText = totalItems;
+
+    // Render Top Products
+    const topProducts = Object.values(productSales).sort((a, b) => b.qty - a.qty).slice(0, 3);
+    const topListEl = document.getElementById('top-products-list');
+    if (topListEl) {
+        if (topProducts.length === 0) {
+            topListEl.innerHTML = '<div class="text-center text-muted">No sales today</div>';
+        } else {
+            topListEl.innerHTML = topProducts.map((p, i) => `
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: ${i < topProducts.length - 1 ? '1px solid #f1f5f9' : 'none'};">
+                    <span style="font-size: 14px;">${p.name}</span>
+                    <span style="font-weight: 600; color: #1e3a8a;">${p.qty} sold</span>
+                </div>
+            `).join('');
+        }
+    }
+
+    // Hourly Sales for Chart
+    const hourlySales = Array(24).fill(0);
+    todayInvoices.forEach(inv => {
+        const hour = new Date(inv.date).getHours();
+        hourlySales[hour] += parseFloat(inv.totalAmount || 0);
+    });
+
+    renderSalesChart(hourlySales);
+};
+
+let salesChartInstance = null;
+window.renderSalesChart = (hourlyData) => {
+    const canvas = document.getElementById('salesChart');
+    if (!canvas) return;
+
+    // Destroy existing chart to avoid layout overlap
+    if (salesChartInstance) salesChartInstance.destroy();
+
+    const ctx = canvas.getContext('2d');
+    salesChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: ['12am', '4am', '8am', '12pm', '4pm', '8pm', '11pm'],
+            datasets: [{
+                label: 'Sales (₹)',
+                data: [hourlyData[0], hourlyData[4], hourlyData[8], hourlyData[12], hourlyData[16], hourlyData[20], hourlyData[23]],
+                borderColor: '#1e3a8a',
+                backgroundColor: 'rgba(30, 58, 138, 0.1)',
+                fill: true,
+                tension: 0.4,
+                borderWidth: 3,
+                pointRadius: 4,
+                pointBackgroundColor: '#1e3a8a'
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: { legend: { display: false } },
+            scales: {
+                y: { beginAtZero: true, grid: { display: false } },
+                x: { grid: { display: false } }
+            }
+        }
+    });
+};
+
+// --- Staff Management Functions ---
+
+window.showAddStaffModal = () => {
+    document.getElementById('staff-email').value = '';
+    const modal = document.getElementById('staff-modal');
+    modal.style.display = 'flex';
+};
+
+window.handleStaffInvite = async (e) => {
+    e.preventDefault();
+    const email = document.getElementById('staff-email').value;
+    const btn = e.target.querySelector('button');
+
+    try {
+        btn.disabled = true;
+        btn.innerText = 'Inviting...';
+        await db.addStaffInvite(email);
+        alert(`Invite sent! Tell your staff to register with ${email}`);
+        document.getElementById('staff-modal').style.display = 'none';
+    } catch (err) {
+        alert("Failed to send invite: " + err.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerText = 'Send Invite';
+    }
+};
+
+window.renderStaffList = (staff) => {
+    const list = document.getElementById('staff-list');
+    if (!list) return;
+
+    if (staff.length === 0) {
+        list.innerHTML = `<p style="text-align: center; color: #6b7280; margin-top: 30px; font-size: 14px;">No staff accounts created yet.</p>`;
+        return;
+    }
+
+    list.innerHTML = staff.map(person => `
+        <div class="card" style="padding: 15px; display: flex; align-items: center; justify-content: space-between; gap: 15px; margin-bottom: 10px;">
+            <div style="display: flex; align-items: center; gap: 15px;">
+                <div style="width: 40px; height: 40px; background: #eef2f6; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                    <span class="material-icons-round" style="color: #1e3a8a;">person</span>
+                </div>
+                <div>
+                    <h4 style="margin: 0;">${person.email || 'Staff Member'}</h4>
+                    <span style="font-size: 11px; color: #6b7280; text-transform: uppercase;">${person.role}</span>
+                </div>
+            </div>
+            ${person.role !== 'store_admin' ? `
+                <button onclick="confirmDeleteStaff('${person.uid}')" style="background:none; border:none; color: #ef4444;">
+                    <span class="material-icons-round">delete_outline</span>
+                </button>
+            ` : ''}
+        </div>
+    `).join('');
+};
+
+window.confirmDeleteStaff = async (uid) => {
+    if (confirm("Revoke access for this staff member?")) {
+        // Placeholder: implement delete in db.js
+        alert("Delete functionality coming soon!");
+    }
 };
 
 // --- Billing / Cart Functions ---
