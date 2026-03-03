@@ -377,6 +377,8 @@ window.renderView = (viewName) => {
             const inv = currentState.currentInvoice;
             if (!inv) { renderView('home'); return; }
 
+            const shopSettings = JSON.parse(localStorage.getItem('shopSettings')) || { name: 'BigStore Pro' };
+
             app.innerHTML = `
                 <div class="screen active" style="padding-bottom: 20px;">
                     <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px;">
@@ -389,7 +391,7 @@ window.renderView = (viewName) => {
                     <!-- HTML Invoice Summary -->
                     <div class="card" style="padding: 20px; font-family: 'Inter', sans-serif; border: 1px solid #e2e8f0; background: #fff;">
                         <div style="text-align: center; margin-bottom: 20px;">
-                            <h2 style="color: #1e3a8a; margin: 0;">BIGSTORE PRO</h2>
+                            <h2 style="color: #1e3a8a; margin: 0; text-transform: uppercase;">${shopSettings.name}</h2>
                             <p style="font-size: 11px; color: #64748b; margin-top: 5px;">#${inv.id}</p>
                         </div>
 
