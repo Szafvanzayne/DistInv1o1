@@ -36,10 +36,12 @@ We chose **Firebase (Firestore & Auth)** as the Backend-as-a-Service to achieve 
 *   **Instant Multi-Device Sync**: The UI in `app.js` (`renderInventoryList`, `renderInvoiceList`, and `loadDashboardStats`) now automatically re-renders the moment any user on any device adds or edits a product/invoice under the same `storeId`.
 *   **Status**: Successfully tested and verified by the user. The codebase is tagged as **Phase 2.1**.
 
-### 5. Data Management & UX Polish
+### 5. Data Management & UX Polish (Verified)
 *   **Invoice Corrections**: Built a full Edit/Delete suite in the History view. Deleting an invoice removes it from the cloud; Editing it reloads the items into the active cart and overwrites the previous record upon re-saving.
 *   **Offline Awareness**: Implemented `navigator.onLine` checks to provide context-aware feedback (e.g., "Saved Offline" vs "Saved to Cloud").
-*   **Cache Resilience**: Added automated cache-busting logic to `index.html` to prevent stagnant UI updates on mobile devices.
+*   **API Security Hardening**: Restricted the Firebase API Key in the GCP Console to only allow requests from your domain.
+*   **Smart Inventory Deduction**: Every invoice generation now automatically deducts the corresponding items from your cloud inventory using atomic operators to ensure sync stability.
+*   **Premium Dashboard Analytics**: Upgraded the home screen with real-time "Total Items" and "Low Stock Alerts" cards that update instantly as you sell products.
 
 ---
-**Phase 2 Status: COMPLETE & VERIFIED**
+**Phase 2 Status: COMPLETE & READY FOR PHASE 3**
