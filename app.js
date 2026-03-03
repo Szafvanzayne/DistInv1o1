@@ -993,13 +993,29 @@ window.shareInvoice = async (method, btn) => {
             }
         }
         else if (method === 'email') {
-            const subject = `Invoice ${invoice.id}`;
-            const body = `Please find attached: Invoice for ₹${invoice.totalAmount}.`;
-            window.open(`mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`);
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(blob);
-            link.download = filename;
-            link.click();
+            const subject = `Invoice ${invoice.id} from ${shopSettings.name}`;
+            const body = `Please find the invoice for ₹${invoice.totalAmount} attached.`;
+
+            // Try Native Share first (allows attachments on mobile)
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                try {
+                    await navigator.share({
+                        title: subject,
+                        text: body,
+                        files: [file]
+                    });
+                } catch (err) {
+                    console.log("Share cancelled or failed:", err);
+                }
+            } else {
+                // Desktop Fallback: mailto + instructions + download
+                alert("Desktop detected: I've downloaded the PDF for you. Please attach it manually to your email.");
+                window.open(`mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`);
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = filename;
+                link.click();
+            }
         }
         else if (method === 'print') {
             const pdfUrl = URL.createObjectURL(blob);
