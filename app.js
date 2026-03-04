@@ -74,22 +74,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 function updateNavVisibility(role) {
     const navItems = document.querySelectorAll('.nav-item');
-    const restricted = ['management', 'reports'];
-
     navItems.forEach(item => {
-        const target = item.dataset.target;
-        if (role === 'staff' && restricted.includes(target)) {
-            item.style.display = 'none';
-        } else {
-            item.style.display = 'flex';
-        }
+        item.style.display = 'flex'; // All items are now universal
     });
-
-    // Hard redirect if staff is somehow on a restricted view
-    if (role === 'staff' && restricted.includes(window.currentState.view)) {
-        console.warn("Unauthorized access attempt. Redirecting to home.");
-        renderView('home');
-    }
 }
 
 function setupNavigation() {
@@ -169,7 +156,7 @@ window.renderView = (viewName) => {
                         <header style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; margin-top: 10px;">
                             <div>
                                 <h1 style="color: white; margin-bottom: 5px;">Dashboard</h1>
-                                <p style="color: rgba(255,255,255,0.8); font-size: 14px;">Welcome Back</p>
+                                <p style="color: rgba(255,255,255,0.8); font-size: 14px;">Welcome Back, ${db.profile.role.replace('_', ' ')}</p>
                             </div>
                             <div style="width: 48px; height: 48px; background: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
                                 <span class="material-icons-round" style="color: #1e3a8a;">person</span>
@@ -185,6 +172,7 @@ window.renderView = (viewName) => {
                                 </select>
                             </div>
                         ` : ''}
+                        
                         <!-- Stats Cards (2x2 Grid) -->
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 30px;">
                             <div class="stat-card">
@@ -210,21 +198,41 @@ window.renderView = (viewName) => {
                         </div>
 
                         <h3 style="margin-bottom: 15px; color: #1e3a8a; font-weight: 600;">Quick Actions</h3>
-                        <div style="display: grid; gap: 15px;">
-                             <button class="btn-primary" onclick="document.querySelector('[data-target=scan]').click()">
-                                <div style="display: flex; align-items: center; justify-content: center; gap: 10px;">
-                                    <span class="material-icons-round">qr_code_scanner</span> 
-                                    <span>Create Invoice</span>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 30px;">
+                             <button class="btn-primary" onclick="renderView('scan')" style="height: 60px;">
+                                <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;">
+                                    <span class="material-icons-round" style="font-size: 20px;">qr_code_scanner</span> 
+                                    <span style="font-size: 12px;">Invoice</span>
                                 </div>
                             </button>
                             
-                            <button class="btn-secondary" onclick="document.querySelector('[data-target=inventory]').click()">
-                                <div style="display: flex; align-items: center; justify-content: center; gap: 10px;">
-                                    <span class="material-icons-round">add_circle_outline</span> 
-                                    <span>Add Product</span>
+                            <button class="btn-secondary" onclick="renderView('inventory')" style="height: 60px;">
+                                <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;">
+                                    <span class="material-icons-round" style="font-size: 20px;">add_circle</span> 
+                                    <span style="font-size: 12px;">Add Stock</span>
                                 </div>
                             </button>
                         </div>
+
+                        ${db.isAdmin() ? `
+                            <h3 style="margin-bottom: 15px; color: #1e3a8a; font-weight: 600;">Administrative Tools</h3>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                                <button class="btn-secondary" onclick="renderView('reports')" style="background: #eff6ff; border-color: #bfdbfe; color: #1e40af; height: 80px;">
+                                    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;">
+                                        <span class="material-icons-round" style="font-size: 24px;">analytics</span> 
+                                        <span style="font-size: 13px; font-weight: 700;">Reports</span>
+                                    </div>
+                                </button>
+                                <button class="btn-secondary" onclick="renderView('management')" style="background: #fdf2f8; border-color: #fbcfe8; color: #9d174d; height: 80px;">
+                                    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;">
+                                        <span class="material-icons-round" style="font-size: 24px;">people</span> 
+                                        <span style="font-size: 13px; font-weight: 700;">Staff</span>
+                                    </div>
+                                </button>
+                            </div>
+                        ` : ''}
+
+                        <div style="height: 80px;"></div>
                     </div>
                 </div>
             `;
@@ -516,11 +524,13 @@ window.renderView = (viewName) => {
             break;
 
         case 'reports':
-            if (db.profile.role === 'staff') { renderView('home'); return; }
             app.innerHTML = `
                 <div class="screen active">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                        <h1>Analytics</h1>
+                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px;">
+                        <button onclick="renderView('home')" style="background:none; border:none; padding:0;">
+                            <span class="material-icons-round" style="color: var(--text-main);">arrow_back</span>
+                        </button>
+                        <h1 style="flex: 1;">Analytics</h1>
                          <button class="btn-secondary" style="width: auto; padding: 5px 15px;" onclick="renderView('invoices')">
                             <span class="material-icons-round" style="font-size: 18px; vertical-align: middle;">receipt_long</span> History
                         </button>
@@ -558,13 +568,15 @@ window.renderView = (viewName) => {
             break;
 
         case 'management':
-            if (db.profile.role === 'staff') { renderView('home'); return; }
             app.innerHTML = `
                 <div class="screen active">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                        <h1>Staff Management</h1>
+                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px;">
+                        <button onclick="renderView('home')" style="background:none; border:none; padding:0;">
+                            <span class="material-icons-round" style="color: var(--text-main);">arrow_back</span>
+                        </button>
+                        <h1 style="flex: 1;">Staff</h1>
                         <button class="btn-primary" style="width: auto; padding: 10px 20px;" onclick="showAddStaffModal()">
-                            + Add Staff
+                            + Add
                         </button>
                     </div>
  
@@ -583,7 +595,7 @@ window.renderView = (viewName) => {
             app.innerHTML = `
                 <div class="screen active">
                     <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px;">
-                        <button onclick="renderView('reports')" style="background:none; border:none; padding:0;">
+                        <button onclick="renderView('home')" style="background:none; border:none; padding:0;">
                             <span class="material-icons-round" style="color: var(--text-main);">arrow_back</span>
                         </button>
                         <h1>History</h1>
