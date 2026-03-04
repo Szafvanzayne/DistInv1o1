@@ -41,9 +41,15 @@ export const db = {
 
     async fetchUserProfile(uid, email) {
         try {
-            const docSnap = await getDoc(doc(firestore, "users", uid));
+            const userDocRef = doc(firestore, "users", uid);
+            const docSnap = await getDoc(userDocRef);
             if (docSnap.exists()) {
                 this.profile = docSnap.data();
+                // Ensure email is stored if missing (for older accounts)
+                if (!this.profile.email && email) {
+                    await updateDoc(userDocRef, { email: email });
+                    this.profile.email = email;
+                }
                 return this.profile;
             } else {
                 // Check if this user was invited as staff
@@ -53,12 +59,13 @@ export const db = {
                     if (!inviteSnap.empty) {
                         const invite = inviteSnap.docs[0].data();
                         this.profile = {
+                            email: email,
                             role: 'staff',
                             storeId: invite.storeId,
                             invitedBy: invite.invitedBy,
                             createdAt: serverTimestamp()
                         };
-                        await setDoc(doc(firestore, "users", uid), this.profile);
+                        await setDoc(userDocRef, this.profile);
                         // Optional: delete invite
                         return this.profile;
                     }
@@ -66,11 +73,12 @@ export const db = {
 
                 // Default profile for new registrations (Store Admin)
                 this.profile = {
+                    email: email || '',
                     role: 'store_admin',
                     storeId: uid,
                     createdAt: serverTimestamp()
                 };
-                await setDoc(doc(firestore, "users", uid), this.profile);
+                await setDoc(userDocRef, this.profile);
                 return this.profile;
             }
         } catch (err) {
@@ -253,16 +261,36 @@ export const db = {
 
     listenToStaff(callback) {
         const storeId = this.getStoreId();
-        const q = query(collection(firestore, "users"), where("storeId", "==", storeId));
-        return onSnapshot(q, (querySnapshot) => {
-            const staff = [];
-            querySnapshot.forEach((doc) => {
-                const data = doc.data();
-                data.uid = doc.id;
-                staff.push(data);
+        const qUsers = query(collection(firestore, "users"), where("storeId", "==", storeId));
+        const qInvites = query(collection(firestore, "staff_invites"), where("storeId", "==", storeId));
+
+        // Combined listener setup
+        const unsubUsers = onSnapshot(qUsers, (uSnap) => {
+            getDocs(qInvites).then(iSnap => {
+                const people = [];
+                // Active Users
+                uSnap.forEach(doc => {
+                    people.push({ uid: doc.id, ...doc.data(), status: 'active' });
+                });
+                // Pending Invites
+                iSnap.forEach(doc => {
+                    const data = doc.data();
+                    // Don't duplicate if they already registered
+                    if (!people.some(p => p.email === data.email)) {
+                        people.push({ uid: doc.id, email: data.email, role: 'staff', status: 'pending' });
+                    }
+                });
+                callback(people);
             });
-            callback(staff);
         });
+        return unsubUsers;
+    },
+
+    async deleteStaff(uidOrInviteId, isInvite = false) {
+        const collectionName = isInvite ? "staff_invites" : "users";
+        if (!isInvite && uidOrInviteId === auth.currentUser.uid) return false;
+        await deleteDoc(doc(firestore, collectionName, uidOrInviteId));
+        return true;
     },
 
     // --- Super Admin Capabilities ---

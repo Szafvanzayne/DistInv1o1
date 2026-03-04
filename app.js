@@ -906,29 +906,39 @@ window.renderStaffList = (staff) => {
     }
 
     list.innerHTML = staff.map(person => `
-        <div class="card" style="padding: 15px; display: flex; align-items: center; justify-content: space-between; gap: 15px; margin-bottom: 10px;">
+        <div class="card" style="padding: 15px; display: flex; align-items: center; justify-content: space-between; gap: 15px; margin-bottom: 10px; border-left: 4px solid ${person.status === 'pending' ? '#f59e0b' : '#10b981'};">
             <div style="display: flex; align-items: center; gap: 15px;">
                 <div style="width: 40px; height: 40px; background: #eef2f6; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
-                    <span class="material-icons-round" style="color: #1e3a8a;">person</span>
+                    <span class="material-icons-round" style="color: #1e3a8a;">${person.status === 'pending' ? 'mail_outline' : 'person'}</span>
                 </div>
                 <div>
-                    <h4 style="margin: 0;">${person.email || 'Staff Member'}</h4>
-                    <span style="font-size: 11px; color: #6b7280; text-transform: uppercase;">${person.role}</span>
+                    <h4 style="margin: 0; font-size: 14px;">${person.email || 'Staff Member'}</h4>
+                    <div style="display: flex; align-items: center; gap: 8px; margin-top: 2px;">
+                        <span style="font-size: 10px; color: #6b7280; text-transform: uppercase; font-weight: 600;">${person.role}</span>
+                        <span style="font-size: 9px; padding: 2px 6px; border-radius: 10px; background: ${person.status === 'pending' ? '#fef3c7' : '#dcfce7'}; color: ${person.status === 'pending' ? '#92400e' : '#166534'}; text-transform: uppercase; font-weight: 700;">
+                            ${person.status}
+                        </span>
+                    </div>
                 </div>
             </div>
-            ${person.role !== 'store_admin' ? `
-                <button onclick="confirmDeleteStaff('${person.uid}')" style="background:none; border:none; color: #ef4444;">
-                    <span class="material-icons-round">delete_outline</span>
+            ${person.uid !== window.currentState.user.uid ? `
+                <button onclick="confirmDeleteStaff('${person.uid}', ${person.status === 'pending'})" style="background:none; border:none; color: #ef4444; padding: 5px;">
+                    <span class="material-icons-round" style="font-size: 20px;">delete_outline</span>
                 </button>
             ` : ''}
         </div>
     `).join('');
 };
 
-window.confirmDeleteStaff = async (uid) => {
-    if (confirm("Revoke access for this staff member?")) {
-        // Placeholder: implement delete in db.js
-        alert("Delete functionality coming soon!");
+window.confirmDeleteStaff = async (id, isInvite) => {
+    const msg = isInvite ? "Cancel this invitation?" : "Revoke access for this staff member?";
+    if (confirm(msg)) {
+        try {
+            const success = await db.deleteStaff(id, isInvite);
+            if (!success) alert("Cannot delete this user.");
+        } catch (err) {
+            alert("Error removing staff: " + err.message);
+        }
     }
 };
 
