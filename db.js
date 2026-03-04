@@ -80,11 +80,22 @@ export const db = {
                 if (inviteData) {
                     this.profile = {
                         email: email,
-                        role: 'staff',
-                        storeId: inviteData.storeId,
+                        role: inviteData.role || 'staff',
+                        storeId: inviteData.storeId || uid,
                         invitedBy: inviteData.invitedBy,
                         createdAt: serverTimestamp()
                     };
+
+                    // If this is a new store admin from an invite, initialize their store details
+                    if (this.profile.role === 'store_admin') {
+                        const details = inviteData.storeDetails || {
+                            name: 'My Store',
+                            address: 'Update your address',
+                            phone: '0000000000',
+                            gstin: ''
+                        };
+                        await this.updateStoreDetails(this.profile.storeId, details);
+                    }
                 } else {
                     // Default profile for new registrations (Store Admin)
                     this.profile = {
@@ -93,6 +104,13 @@ export const db = {
                         storeId: uid,
                         createdAt: serverTimestamp()
                     };
+                    // Initialize default store details
+                    await this.updateStoreDetails(uid, {
+                        name: 'My Store',
+                        address: 'Update your address',
+                        phone: '0000000000',
+                        gstin: ''
+                    });
                 }
                 await setDoc(userDocRef, this.profile);
                 return this.profile;
@@ -101,6 +119,22 @@ export const db = {
             console.error("Error fetching user profile:", err);
             return { role: 'staff', storeId: uid }; // Fallback safety
         }
+    },
+
+    async getStoreDetails(storeId) {
+        const id = storeId || this.getStoreId();
+        const docRef = doc(firestore, "stores", id);
+        const snap = await getDoc(docRef);
+        return snap.exists() ? snap.data() : null;
+    },
+
+    async updateStoreDetails(storeId, details) {
+        const id = storeId || this.getStoreId();
+        await setDoc(doc(firestore, "stores", id), {
+            ...details,
+            updatedAt: serverTimestamp()
+        }, { merge: true });
+        return true;
     },
 
     getStoreId() {
@@ -113,6 +147,22 @@ export const db = {
         const user = auth.currentUser;
         if (!user) throw new Error("User not authenticated.");
         return user.uid; // Using the authenticated user's UID as their isolated Store ID
+    },
+
+    async getAllStores() {
+        // Fetch all store admins to list stores (User ID = Store ID)
+        const q = query(collection(firestore, "users"), where("role", "==", "store_admin"));
+        const snap = await getDocs(q);
+        const stores = [];
+        snap.forEach(doc => {
+            const data = doc.data();
+            stores.push({
+                id: doc.id,
+                email: data.email,
+                name: data.email ? data.email.split('@')[0] : doc.id.slice(0, 8) // Fallback name
+            });
+        });
+        return stores;
     },
 
     isAdmin() {
@@ -263,14 +313,18 @@ export const db = {
 
     // --- Staff Management ---
 
-    async addStaffInvite(email) {
-        const storeId = this.getStoreId();
-        const inviteId = `${storeId}_${email.replace(/[@.]/g, '_')}`;
-        await setDoc(doc(firestore, "staff_invites", inviteId), {
-            email: email,
+    async addStaffInvite(email, role = 'staff', targetStoreId = null, storeDetails = null) {
+        const inviterStoreId = this.getStoreId();
+        const storeId = targetStoreId || inviterStoreId;
+
+        await setDoc(doc(firestore, "staff_invites", email.toLowerCase()), {
+            email: email.toLowerCase(),
+            role: role,
             storeId: storeId,
             invitedBy: auth.currentUser.uid,
-            createdAt: serverTimestamp()
+            status: 'pending',
+            createdAt: serverTimestamp(),
+            storeDetails: storeDetails || null
         });
         return true;
     },

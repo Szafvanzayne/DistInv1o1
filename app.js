@@ -115,7 +115,7 @@ const cleanupListeners = () => {
     }
 };
 
-window.renderView = (viewName) => {
+window.renderView = async (viewName) => {
     const app = document.getElementById('app');
     cleanupListeners(); // Stop background syncing to old DOM elements
     app.innerHTML = ''; // Clear current screen
@@ -426,7 +426,7 @@ window.renderView = (viewName) => {
             const inv = currentState.currentInvoice;
             if (!inv) { renderView('home'); return; }
 
-            const shopSettings = JSON.parse(localStorage.getItem('shopSettings')) || {
+            const shopSettings = await db.getStoreDetails() || {
                 name: 'BigStore Pro',
                 gstin: 'NOT SET',
                 address: '',
@@ -612,12 +612,20 @@ window.renderView = (viewName) => {
             break;
 
         case 'settings':
-            const settings = JSON.parse(localStorage.getItem('shopSettings')) || {
-                name: 'BigStore Pro',
-                gstin: '29ABCDE1234F1Z5',
-                address: 'Kerala, India',
-                phone: '9876543210'
-            };
+            let settings = await db.getStoreDetails();
+
+            // Migration / Default fallback
+            if (!settings) {
+                const local = JSON.parse(localStorage.getItem('shopSettings'));
+                settings = local || {
+                    name: 'BigStore Pro',
+                    gstin: '29ABCDE1234F1Z5',
+                    address: 'Kerala, India',
+                    phone: '9876543210'
+                };
+                // Initialize Firestore with local data or defaults
+                await db.updateStoreDetails(null, settings);
+            }
 
             app.innerHTML = `
                 <div class="screen active">
@@ -657,7 +665,7 @@ window.renderView = (viewName) => {
                     </div>
 
                     <div style="text-align: center; margin-top: 30px; color: var(--text-secondary);">
-                        <p>App Version: <strong>v2.9.0 (Cloud Sync Active)</strong></p>
+                        <p>App Version: <strong>v3.4.0 (Cloud Sync Active)</strong></p>
                         <p style="font-size: 12px; margin-top: 5px;">&copy; 2026 BigStore Pro</p>
                     </div>
                     
@@ -704,6 +712,7 @@ window.handleDirectStaffCreate = async (e) => {
     e.preventDefault();
     const email = document.getElementById('staff-email').value;
     const password = document.getElementById('staff-password').value;
+    const role = document.getElementById('staff-role').value;
     const btn = e.target.querySelector('button');
 
     if (password.length < 6) {
@@ -711,7 +720,26 @@ window.handleDirectStaffCreate = async (e) => {
         return;
     }
 
-    if (!confirm(`Are you sure you want to create a staff account for ${email}?\n\nNOTE: You will be logged out and need to sign back in as Admin after this step.`)) {
+    let storeDetails = null;
+    let targetStoreId = null;
+
+    if (role === 'store_admin') {
+        storeDetails = {
+            name: document.getElementById('staff-store-name').value,
+            phone: document.getElementById('staff-store-phone').value,
+            address: document.getElementById('staff-store-address').value,
+            gstin: document.getElementById('staff-store-gst').value
+        };
+    } else {
+        targetStoreId = document.getElementById('staff-store-id').value;
+        if (!targetStoreId && db.isSuperAdmin()) {
+            alert("Please select a store for this staff member.");
+            return;
+        }
+    }
+
+    const roleLabel = role === 'store_admin' ? 'Store Admin' : 'Staff';
+    if (!confirm(`Create ${roleLabel} account for ${email}?\n\nNOTE: You will be logged out and need to sign back in as Admin after this.`)) {
         return;
     }
 
@@ -719,24 +747,24 @@ window.handleDirectStaffCreate = async (e) => {
         btn.disabled = true;
         btn.innerText = 'Creating account...';
 
-        // 1. Add Invite record first (so the new user is linked correctly)
-        await db.addStaffInvite(email);
+        // 1. Add Invite record with role and details
+        await db.addStaffInvite(email, role, targetStoreId, storeDetails);
 
-        // 2. Create the account (This will log the Admin out automatically by Firebase)
+        // 2. Create the account
         await createUserWithEmailAndPassword(auth, email, password);
 
-        // 3. Clear the new user's session and ask admin to log back in
+        // 3. Log out and switch to login
         await signOut(auth);
 
-        alert(`Account created successfully for ${email}!\n\nPlease log back in with your Admin credentials.`);
+        alert(`Account created successfully!\n\nPlease log back in with your Admin credentials.`);
         document.getElementById('staff-modal').style.display = 'none';
         renderView('login');
 
     } catch (err) {
-        alert("Failed to create staff account: " + err.message);
+        alert("Failed: " + err.message);
     } finally {
         btn.disabled = false;
-        btn.innerText = 'Create Staff Account';
+        btn.innerText = 'Create Account';
     }
 };
 
@@ -920,10 +948,45 @@ window.renderSalesChart = (hourlyData) => {
 
 // --- Staff Management Functions ---
 
-window.showAddStaffModal = () => {
+window.showAddStaffModal = async () => {
     document.getElementById('staff-email').value = '';
+    document.getElementById('staff-password').value = '';
+    document.getElementById('staff-role').value = 'staff';
+    toggleStaffFields('staff');
+
+    // If Super Admin, populate store list
+    if (db.isSuperAdmin()) {
+        const storeSelect = document.getElementById('staff-store-id');
+        const stores = await db.getAllStores();
+        storeSelect.innerHTML = '<option value="">Select a Store...</option>' +
+            stores.map(s => `<option value="${s.id}">${s.name} (${s.email})</option>`).join('');
+    }
+
     const modal = document.getElementById('staff-modal');
     modal.style.display = 'flex';
+};
+
+window.toggleStaffFields = (role) => {
+    const adminFields = document.getElementById('store-admin-fields');
+    const staffFields = document.getElementById('staff-store-selection');
+
+    if (role === 'store_admin') {
+        adminFields.style.display = 'block';
+        staffFields.style.display = 'none';
+
+        // Make admin fields required
+        document.getElementById('staff-store-name').required = true;
+        document.getElementById('staff-store-phone').required = true;
+        document.getElementById('staff-store-address').required = true;
+    } else {
+        adminFields.style.display = 'none';
+        staffFields.style.display = 'block';
+
+        // Remove requirement
+        document.getElementById('staff-store-name').required = false;
+        document.getElementById('staff-store-phone').required = false;
+        document.getElementById('staff-store-address').required = false;
+    }
 };
 
 window.handleStaffInvite = async (e) => {
@@ -1254,7 +1317,7 @@ async function getGeneratedPdfBlob() {
     const invoice = currentState.currentInvoice;
     if (!invoice) return null;
 
-    const settings = JSON.parse(localStorage.getItem('shopSettings')) || {
+    const settings = await db.getStoreDetails() || {
         name: 'BigStore Pro',
         gstin: 'NOT SET',
         address: '',
@@ -1328,7 +1391,7 @@ window.shareInvoice = async (method, btn) => {
     const invoice = currentState.currentInvoice;
     if (!invoice) return;
 
-    const shopSettings = JSON.parse(localStorage.getItem('shopSettings')) || { name: 'BigStore Pro' };
+    const shopSettings = await db.getStoreDetails() || { name: 'BigStore Pro' };
 
     // Show loading text
     const originalBtnText = btn.innerHTML;
