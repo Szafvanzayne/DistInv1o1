@@ -347,7 +347,7 @@ export const db = {
                     const data = doc.data();
                     // Don't duplicate if they already registered
                     if (!people.some(p => p.email === data.email)) {
-                        people.push({ uid: doc.id, email: data.email, role: 'staff', status: 'pending' });
+                        people.push({ uid: doc.id, email: data.email, role: data.role || 'staff', status: 'pending' });
                     }
                 });
                 callback(people);
