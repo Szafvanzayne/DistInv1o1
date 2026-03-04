@@ -21,7 +21,7 @@
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
 
     <!-- Styles -->
-    <link rel="stylesheet" href="style.css?v=3.1">
+    <link rel="stylesheet" href="style.css?v=3.2">
 
     <!-- Libraries (ES Modules preferred, but using globals for simplicity where needed or UMD) -->
     <!-- Html5-QRCode -->
@@ -71,7 +71,7 @@
 
     <!-- App Logic -->
     <!-- App Logic -->
-    <script type="module" src="app.js?v=3.1"></script>
+    <script type="module" src="app.js?v=3.2"></script>
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
@@ -112,14 +112,21 @@
             <button onclick="document.getElementById('staff-modal').style.display='none'"
                 style="position: absolute; top: 10px; right: 10px; background: none; border: none; font-size: 20px;">×</button>
             <h2 style="margin-bottom: 20px;">Add Staff Member</h2>
-            <form onsubmit="handleStaffInvite(event)">
+            <form id="staff-creation-form" onsubmit="handleDirectStaffCreate(event)">
                 <div style="margin-bottom: 15px;">
                     <label>Staff Email</label>
                     <input type="email" id="staff-email" required placeholder="staff@example.com">
                 </div>
-                <p style="font-size: 12px; color: #6b7280; margin-bottom: 20px;">The staff member will be granted access
-                    to this store after they register with this email.</p>
-                <button type="submit" class="btn-primary">Send Invite</button>
+                <div style="margin-bottom: 15px;">
+                    <label>Password</label>
+                    <input type="password" id="staff-password" required placeholder="Min 6 characters">
+                </div>
+                <p style="font-size: 11px; color: #6b7280; margin-bottom: 20px; line-height: 1.4;">
+                    <strong>Direct Create:</strong> This will create the staff account immediately.
+                    <br><span style="color: #ef4444;">Note: You will be asked to re-login after this to secure your
+                        session.</span>
+                </p>
+                <button type="submit" class="btn-primary">Create Staff Account</button>
             </form>
         </div>
     </div>

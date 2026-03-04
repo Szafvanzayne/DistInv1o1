@@ -42,42 +42,58 @@ export const db = {
     async fetchUserProfile(uid, email) {
         try {
             const userDocRef = doc(firestore, "users", uid);
-            const docSnap = await getDoc(userDocRef);
+            let docSnap = await getDoc(userDocRef);
+
+            // Check for invites first (The Source of Truth for roles)
+            let inviteData = null;
+            if (email) {
+                const q = query(collection(firestore, "staff_invites"), where("email", "==", email));
+                const inviteSnap = await getDocs(q);
+                if (!inviteSnap.empty) {
+                    inviteData = inviteSnap.docs[0].data();
+                }
+            }
+
             if (docSnap.exists()) {
                 this.profile = docSnap.data();
-                // Ensure email is stored if missing (for older accounts)
+
+                // DATA REPAIR: If user is an admin but has a staff invite, downgrade them
+                if (inviteData && this.profile.role !== 'staff') {
+                    console.log("Repairing role for:", email);
+                    const updateObj = {
+                        role: 'staff',
+                        storeId: inviteData.storeId,
+                        invitedBy: inviteData.invitedBy
+                    };
+                    await updateDoc(userDocRef, updateObj);
+                    this.profile = { ...this.profile, ...updateObj };
+                }
+
+                // Ensure email is stored if missing
                 if (!this.profile.email && email) {
                     await updateDoc(userDocRef, { email: email });
                     this.profile.email = email;
                 }
                 return this.profile;
             } else {
-                // Check if this user was invited as staff
-                if (email) {
-                    const q = query(collection(firestore, "staff_invites"), where("email", "==", email));
-                    const inviteSnap = await getDocs(q);
-                    if (!inviteSnap.empty) {
-                        const invite = inviteSnap.docs[0].data();
-                        this.profile = {
-                            email: email,
-                            role: 'staff',
-                            storeId: invite.storeId,
-                            invitedBy: invite.invitedBy,
-                            createdAt: serverTimestamp()
-                        };
-                        await setDoc(userDocRef, this.profile);
-                        // Optional: delete invite
-                        return this.profile;
-                    }
+                // New user flow
+                if (inviteData) {
+                    this.profile = {
+                        email: email,
+                        role: 'staff',
+                        storeId: inviteData.storeId,
+                        invitedBy: inviteData.invitedBy,
+                        createdAt: serverTimestamp()
+                    };
+                } else {
+                    // Default profile for new registrations (Store Admin)
+                    this.profile = {
+                        email: email || '',
+                        role: 'store_admin',
+                        storeId: uid,
+                        createdAt: serverTimestamp()
+                    };
                 }
-
-                // Default profile for new registrations (Store Admin)
-                this.profile = {
-                    email: email || '',
-                    role: 'store_admin',
-                    storeId: uid,
-                    createdAt: serverTimestamp()
-                };
                 await setDoc(userDocRef, this.profile);
                 return this.profile;
             }

@@ -74,22 +74,22 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 function updateNavVisibility(role) {
     const navItems = document.querySelectorAll('.nav-item');
+    const restricted = ['management', 'reports'];
+
     navItems.forEach(item => {
         const target = item.dataset.target;
-        // Manage view visibility
-        if (role === 'staff') {
-            const restricted = ['management', 'reports'];
-            if (restricted.includes(target)) {
-                item.style.display = 'none';
-            } else {
-                item.style.display = 'flex';
-            }
-        } else if (role === 'store_admin') {
-            item.style.display = 'flex';
-        } else if (role === 'super_admin') {
+        if (role === 'staff' && restricted.includes(target)) {
+            item.style.display = 'none';
+        } else {
             item.style.display = 'flex';
         }
     });
+
+    // Hard redirect if staff is somehow on a restricted view
+    if (role === 'staff' && restricted.includes(window.currentState.view)) {
+        console.warn("Unauthorized access attempt. Redirecting to home.");
+        renderView('home');
+    }
 }
 
 function setupNavigation() {
@@ -668,26 +668,63 @@ window.handleAuth = async (e) => {
     const password = e.target.password.value;
     const action = e.target.submitedBtn || 'login';
     const errorDiv = document.getElementById('auth-error');
-    errorDiv.style.display = 'none';
+    if (errorDiv) errorDiv.style.display = 'none';
 
     try {
         if (action === 'register') {
             const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-            // Create initial profile in Firestore
-            const { doc, setDoc, serverTimestamp } = await import("https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js");
-            const { firestore } = await import('./db.js?v=2.3');
-            await setDoc(doc(firestore, "users", userCredential.user.uid), {
-                email: email,
-                role: 'store_admin', // Default role
-                storeId: userCredential.user.uid,
-                createdAt: serverTimestamp()
-            });
+            // db.fetchUserProfile takes care of checking invites and setting the correct role/storeId
+            await db.fetchUserProfile(userCredential.user.uid, email);
         } else {
             await signInWithEmailAndPassword(auth, email, password);
         }
     } catch (err) {
-        errorDiv.innerText = err.message.replace('Firebase: ', '');
-        errorDiv.style.display = 'block';
+        if (errorDiv) {
+            errorDiv.innerText = err.message.replace('Firebase: ', '');
+            errorDiv.style.display = 'block';
+        } else {
+            alert(err.message);
+        }
+    }
+};
+
+window.handleDirectStaffCreate = async (e) => {
+    e.preventDefault();
+    const email = document.getElementById('staff-email').value;
+    const password = document.getElementById('staff-password').value;
+    const btn = e.target.querySelector('button');
+
+    if (password.length < 6) {
+        alert("Password must be at least 6 characters.");
+        return;
+    }
+
+    if (!confirm(`Are you sure you want to create a staff account for ${email}?\n\nNOTE: You will be logged out and need to sign back in as Admin after this step.`)) {
+        return;
+    }
+
+    try {
+        btn.disabled = true;
+        btn.innerText = 'Creating account...';
+
+        // 1. Add Invite record first (so the new user is linked correctly)
+        await db.addStaffInvite(email);
+
+        // 2. Create the account (This will log the Admin out automatically by Firebase)
+        await createUserWithEmailAndPassword(auth, email, password);
+
+        // 3. Clear the new user's session and ask admin to log back in
+        await signOut(auth);
+
+        alert(`Account created successfully for ${email}!\n\nPlease log back in with your Admin credentials.`);
+        document.getElementById('staff-modal').style.display = 'none';
+        renderView('login');
+
+    } catch (err) {
+        alert("Failed to create staff account: " + err.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerText = 'Create Staff Account';
     }
 };
 
