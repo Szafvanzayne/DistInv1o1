@@ -627,32 +627,36 @@ window.renderView = async (viewName) => {
                 await db.updateStoreDetails(null, settings);
             }
 
+            const isStaff = db.profile && db.profile.role === 'staff';
+
             app.innerHTML = `
                 <div class="screen active">
                     <h1>Settings</h1>
                     
                     <div class="card" style="margin-top: 20px;">
                         <h3 class="mb-2">Store Details</h3>
-                        <p style="color: var(--text-secondary); font-size: 12px; margin-bottom: 15px;">These details will appear on your invoices.</p>
+                        <p style="color: var(--text-secondary); font-size: 12px; margin-bottom: 15px;">
+                            ${isStaff ? 'Viewing store information (Read-only for Staff)' : 'These details will appear on your invoices.'}
+                        </p>
                         
                         <form onsubmit="saveSettings(event)">
                             <div style="margin-bottom: 15px;">
                                 <label>Shop Name</label>
-                                <input type="text" name="shopName" value="${settings.name}" required>
+                                <input type="text" name="shopName" value="${settings.name}" required ${isStaff ? 'readonly style="background: #f8fafc; cursor: not-allowed;"' : ''}>
                             </div>
                             <div style="margin-bottom: 15px;">
                                 <label>GSTIN</label>
-                                <input type="text" name="gstin" value="${settings.gstin}">
+                                <input type="text" name="gstin" value="${settings.gstin}" ${isStaff ? 'readonly style="background: #f8fafc; cursor: not-allowed;"' : ''}>
                             </div>
                              <div style="margin-bottom: 15px;">
                                 <label>Address</label>
-                                <input type="text" name="address" value="${settings.address}">
+                                <input type="text" name="address" value="${settings.address}" ${isStaff ? 'readonly style="background: #f8fafc; cursor: not-allowed;"' : ''}>
                             </div>
                             <div style="margin-bottom: 15px;">
                                 <label>Phone</label>
-                                <input type="text" name="phone" value="${settings.phone}">
+                                <input type="text" name="phone" value="${settings.phone}" ${isStaff ? 'readonly style="background: #f8fafc; cursor: not-allowed;"' : ''}>
                             </div>
-                            <button type="submit" class="btn-primary">Save Details</button>
+                            ${isStaff ? '' : '<button type="submit" class="btn-primary">Save Details</button>'}
                         </form>
                     </div>
 
@@ -665,7 +669,7 @@ window.renderView = async (viewName) => {
                     </div>
 
                     <div style="text-align: center; margin-top: 30px; color: var(--text-secondary);">
-                        <p>App Version: <strong>v3.4.0 (Cloud Sync Active)</strong></p>
+                        <p>App Version: <strong>v3.4.1 (Cloud Sync Active)</strong></p>
                         <p style="font-size: 12px; margin-top: 5px;">&copy; 2026 BigStore Pro</p>
                     </div>
                     
@@ -1241,8 +1245,14 @@ window.startScannerForField = (fieldId) => {
 };
 
 // --- Settings Logic ---
-window.saveSettings = (e) => {
+window.saveSettings = async (e) => {
     e.preventDefault();
+
+    if (db.profile && db.profile.role === 'staff') {
+        alert("Action Denied: Staff cannot modify store settings.");
+        return;
+    }
+
     const formData = new FormData(e.target);
     const settings = {
         name: formData.get('shopName'),
@@ -1250,8 +1260,13 @@ window.saveSettings = (e) => {
         address: formData.get('address'),
         phone: formData.get('phone')
     };
-    localStorage.setItem('shopSettings', JSON.stringify(settings));
-    alert("Store Details Saved!");
+
+    try {
+        await db.updateStoreDetails(null, settings);
+        alert("Store Details Saved to Cloud!");
+    } catch (err) {
+        alert("Failed to save settings: " + err.message);
+    }
 };
 
 // --- Invoicing & PDF ---
