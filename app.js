@@ -685,7 +685,7 @@ window.renderView = async (viewName) => {
                     </div>
 
                     <div style="text-align: center; margin-top: 30px; color: var(--text-secondary);">
-                        <p>App Version: <strong>v3.4.4 (Cloud Sync Active)</strong></p>
+                        <p>App Version: <strong>v3.4.5 (Cloud Sync Active)</strong></p>
                         <p style="font-size: 12px; margin-top: 5px;">&copy; 2026 BigStore Pro</p>
                     </div>
                     
@@ -736,6 +736,12 @@ window.handleDirectStaffCreate = async (e) => {
     const staffLimitInput = document.getElementById('staff-limit');
     const staffLimit = staffLimitInput ? parseInt(staffLimitInput.value) : 3;
     const btn = e.target.querySelector('button');
+
+    // Security Check: Only Super Admin can create Store Admins
+    if (role === 'store_admin' && !db.isSuperAdmin()) {
+        alert("Action Denied: Only Super Admins can create Store Admin accounts.");
+        return;
+    }
 
     if (password.length < 6) {
         alert("Password must be at least 6 characters.");
@@ -1010,7 +1016,18 @@ window.renderSalesChart = (hourlyData) => {
 window.showAddStaffModal = async () => {
     document.getElementById('staff-email').value = '';
     document.getElementById('staff-password').value = '';
-    document.getElementById('staff-role').value = 'staff';
+
+    // Dynamic Role Selection: Store Admins can only create Staff
+    const roleSelect = document.getElementById('staff-role');
+    if (db.isSuperAdmin()) {
+        roleSelect.innerHTML = `
+            <option value="staff">Staff</option>
+            <option value="store_admin">Store Admin</option>
+        `;
+    } else {
+        roleSelect.innerHTML = `<option value="staff">Staff</option>`;
+    }
+    roleSelect.value = 'staff';
     toggleStaffFields('staff');
 
     // If Super Admin, populate store list
