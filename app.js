@@ -10,7 +10,7 @@
  */
 
 import { db, auth, firebaseConfig } from './db.js?v=2.3';
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
+import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-auth.js";
 
 window.currentState = {
@@ -686,7 +686,7 @@ window.renderView = async (viewName) => {
                     </div>
 
                     <div style="text-align: center; margin-top: 30px; color: var(--text-secondary);">
-                        <p>App Version: <strong>v3.4.6 (Cloud Sync Active)</strong></p>
+                        <p>App Version: <strong>v3.4.7 (Cloud Sync Active)</strong></p>
                         <p style="font-size: 12px; margin-top: 5px;">&copy; 2026 BigStore Pro</p>
                     </div>
                     
@@ -818,12 +818,12 @@ window.handleDirectStaffCreate = async (e) => {
 
             // Clean up secondary app
             await signOut(tempAuth);
-            await tempApp.delete();
+            await deleteApp(tempApp);
 
             alert(`${roleLabel} account created successfully!`);
         } catch (authErr) {
             // Clean up secondary app on error too
-            await tempApp.delete();
+            await deleteApp(tempApp);
             if (authErr.code === 'auth/email-already-in-use') {
                 // If account exists, fall back to linking/invite system
                 await db.addStaffInvite(email, role, targetStoreId, { ...storeDetails, staffLimit });
