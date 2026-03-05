@@ -1026,7 +1026,9 @@ window.renderStaffList = (staff) => {
                 <div>
                     <h4 style="margin: 0; font-size: 14px;">${person.email || 'Staff Member'}</h4>
                     <div style="display: flex; align-items: center; gap: 8px; margin-top: 2px;">
-                        <span style="font-size: 10px; color: #6b7280; text-transform: uppercase; font-weight: 600;">${person.role}</span>
+                        <span style="font-size: 10px; color: #6b7280; text-transform: uppercase; font-weight: 600;">
+                            ${person.role === 'store_admin' ? 'Store Admin' : person.role === 'super_admin' ? 'Super Admin' : 'Staff'}
+                        </span>
                         <span style="font-size: 9px; padding: 2px 6px; border-radius: 10px; background: ${person.status === 'pending' ? '#fef3c7' : '#dcfce7'}; color: ${person.status === 'pending' ? '#92400e' : '#166534'}; text-transform: uppercase; font-weight: 700;">
                             ${person.status}
                         </span>
