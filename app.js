@@ -681,7 +681,7 @@ window.renderView = async (viewName) => {
                     </div>
 
                     <div style="text-align: center; margin-top: 30px; color: var(--text-secondary);">
-                        <p>App Version: <strong>v3.4.2 (Cloud Sync Active)</strong></p>
+                        <p>App Version: <strong>v3.4.3 (Cloud Sync Active)</strong></p>
                         <p style="font-size: 12px; margin-top: 5px;">&copy; 2026 BigStore Pro</p>
                     </div>
                     
@@ -767,12 +767,20 @@ window.handleDirectStaffCreate = async (e) => {
         await db.addStaffInvite(email, role, targetStoreId, storeDetails);
 
         // 2. Create the account
-        await createUserWithEmailAndPassword(auth, email, password);
+        try {
+            await createUserWithEmailAndPassword(auth, email, password);
+            await signOut(auth);
+            alert(`Account created successfully!\n\nPlease log back in with your Admin credentials.`);
+        } catch (authErr) {
+            if (authErr.code === 'auth/email-already-in-use') {
+                // Step 1 already created the invite record. 
+                // When they log in with existing credentials, fetchUserProfile will sync them.
+                alert(`Note: This email already has an account.\n\nWe have updated their access permissions in the cloud. They can log in with their existing password.`);
+            } else {
+                throw authErr;
+            }
+        }
 
-        // 3. Log out and switch to login
-        await signOut(auth);
-
-        alert(`Account created successfully!\n\nPlease log back in with your Admin credentials.`);
         document.getElementById('staff-modal').style.display = 'none';
         renderView('login');
 
