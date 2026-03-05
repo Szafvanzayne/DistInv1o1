@@ -139,7 +139,17 @@ export const db = {
 
     async updateStoreDetails(storeId, details) {
         const id = storeId || this.getStoreId();
-        await setDoc(doc(firestore, "stores", id), {
+        const docRef = doc(firestore, "stores", id);
+
+        // If this is a new store or staffLimit is not set, default to 3
+        if (details.staffLimit === undefined) {
+            const snap = await getDoc(docRef);
+            if (!snap.exists() || snap.data().staffLimit === undefined) {
+                details.staffLimit = 3;
+            }
+        }
+
+        await setDoc(docRef, {
             ...details,
             updatedAt: serverTimestamp()
         }, { merge: true });
@@ -385,5 +395,20 @@ export const db = {
         return onSnapshot(doc(firestore, "users", uid), (doc) => {
             callback(doc.exists() ? doc.data() : null);
         });
+    },
+
+    async getStaffCount(storeId) {
+        const q = query(collection(firestore, "users"), where("storeId", "==", storeId), where("role", "==", "staff"));
+        const snap = await getDocs(q);
+        return snap.size;
+    },
+
+    async createUserProfile(uid, data) {
+        const userDocRef = doc(firestore, "users", uid);
+        await setDoc(userDocRef, {
+            ...data,
+            createdAt: serverTimestamp()
+        });
+        return true;
     }
 };

@@ -87,7 +87,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 function updateNavVisibility(role) {
     const navItems = document.querySelectorAll('.nav-item');
     navItems.forEach(item => {
-        item.style.display = 'flex'; // All items are now universal
+        const target = item.dataset.target;
+        if (target === 'management' || target === 'settings') {
+            item.style.display = (role === 'super_admin' || role === 'store_admin') ? 'flex' : 'none';
+        } else {
+            item.style.display = 'flex';
+        }
     });
 }
 
@@ -154,7 +159,6 @@ window.renderView = async (viewName) => {
                         </div>
                         <div id="auth-error" style="color: red; font-size: 14px; margin-bottom: 15px; display: none;"></div>
                         <button type="submit" name="action" value="login" onclick="this.form.submitedBtn='login'" class="btn-primary" style="margin-bottom: 10px;">Login securely</button>
-                        <button type="submit" name="action" value="register" onclick="this.form.submitedBtn='register'" class="btn-secondary">Register New Store Account</button>
                     </form>
                 </div>
             `;
@@ -681,7 +685,7 @@ window.renderView = async (viewName) => {
                     </div>
 
                     <div style="text-align: center; margin-top: 30px; color: var(--text-secondary);">
-                        <p>App Version: <strong>v3.4.3 (Cloud Sync Active)</strong></p>
+                        <p>App Version: <strong>v3.4.4 (Cloud Sync Active)</strong></p>
                         <p style="font-size: 12px; margin-top: 5px;">&copy; 2026 BigStore Pro</p>
                     </div>
                     
@@ -729,6 +733,8 @@ window.handleDirectStaffCreate = async (e) => {
     const email = document.getElementById('staff-email').value;
     const password = document.getElementById('staff-password').value;
     const role = document.getElementById('staff-role').value;
+    const staffLimitInput = document.getElementById('staff-limit');
+    const staffLimit = staffLimitInput ? parseInt(staffLimitInput.value) : 3;
     const btn = e.target.querySelector('button');
 
     if (password.length < 6) {
@@ -752,6 +758,18 @@ window.handleDirectStaffCreate = async (e) => {
             alert("Please select a store for this staff member.");
             return;
         }
+
+        // --- Staff Limit Check ---
+        const finalStoreId = targetStoreId || db.getStoreId();
+        const count = await db.getStaffCount(finalStoreId);
+        const storeInfo = await db.getStoreDetails(finalStoreId);
+        const limit = (storeInfo && storeInfo.staffLimit) ? parseInt(storeInfo.staffLimit) : 3;
+
+        if (count >= limit) {
+            alert(`Limit Reached: This store is allowed only ${limit} staff members. Contact Super Admin to upgrade.`);
+            return;
+        }
+        targetStoreId = finalStoreId;
     }
 
     const roleLabel = role === 'store_admin' ? 'Store Admin' : 'Staff';
@@ -763,18 +781,35 @@ window.handleDirectStaffCreate = async (e) => {
         btn.disabled = true;
         btn.innerText = 'Creating account...';
 
-        // 1. Add Invite record with role and details
-        await db.addStaffInvite(email, role, targetStoreId, storeDetails);
-
-        // 2. Create the account
+        // 1. Create Auth Account
         try {
-            await createUserWithEmailAndPassword(auth, email, password);
+            const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+            const uid = userCredential.user.uid;
+
+            // 2. Create Firestore Profile (Immediate Activation)
+            const profileData = {
+                email: email.toLowerCase(),
+                role: role,
+                storeId: targetStoreId || uid,
+                status: 'active'
+            };
+            await db.createUserProfile(uid, profileData);
+
+            // 3. If Store Admin, update store details (including limit)
+            if (role === 'store_admin') {
+                await db.updateStoreDetails(uid, {
+                    ...storeDetails,
+                    email: email.toLowerCase(),
+                    staffLimit: staffLimit
+                });
+            }
+
             await signOut(auth);
             alert(`Account created successfully!\n\nPlease log back in with your Admin credentials.`);
         } catch (authErr) {
             if (authErr.code === 'auth/email-already-in-use') {
-                // Step 1 already created the invite record. 
-                // When they log in with existing credentials, fetchUserProfile will sync them.
+                // If account exists, fall back to linking/invite system
+                await db.addStaffInvite(email, role, targetStoreId, { ...storeDetails, staffLimit });
                 alert(`Note: This email already has an account.\n\nWe have updated their access permissions in the cloud. They can log in with their existing password.`);
             } else {
                 throw authErr;
@@ -986,6 +1021,9 @@ window.showAddStaffModal = async () => {
             stores.map(s => `<option value="${s.id}">${s.name} (${s.email})</option>`).join('');
     }
 
+    const limitContainer = document.getElementById('staff-limit-container');
+    if (limitContainer) limitContainer.style.display = 'none';
+
     const modal = document.getElementById('staff-modal');
     modal.style.display = 'flex';
 };
@@ -993,6 +1031,13 @@ window.showAddStaffModal = async () => {
 window.toggleStaffFields = (role) => {
     const adminFields = document.getElementById('store-admin-fields');
     const staffFields = document.getElementById('staff-store-selection');
+
+    const limitContainer = document.getElementById('staff-limit-container');
+    if (role === 'store_admin' && db.isSuperAdmin()) {
+        if (limitContainer) limitContainer.style.display = 'block';
+    } else {
+        if (limitContainer) limitContainer.style.display = 'none';
+    }
 
     if (role === 'store_admin') {
         adminFields.style.display = 'block';
