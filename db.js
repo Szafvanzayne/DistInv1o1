@@ -410,5 +410,54 @@ export const db = {
             createdAt: serverTimestamp()
         });
         return true;
+    },
+
+    // --- Customer Management ---
+
+    async addCustomer(customer) {
+        const storeId = this.getStoreId();
+        customer.storeId = storeId;
+        customer.createdAt = serverTimestamp();
+
+        // Generate a simple ID if not provided (phone is a good candidate for customers)
+        const id = customer.phone || Date.now().toString();
+        await setDoc(doc(firestore, "customers", `${storeId}_${id}`), customer);
+        return true;
+    },
+
+    async updateCustomer(id, details) {
+        const storeId = this.getStoreId();
+        const docRef = doc(firestore, "customers", `${storeId}_${id}`);
+        await updateDoc(docRef, {
+            ...details,
+            updatedAt: serverTimestamp()
+        });
+        return true;
+    },
+
+    async deleteCustomer(id) {
+        const storeId = this.getStoreId();
+        await deleteDoc(doc(firestore, "customers", `${storeId}_${id}`));
+        return true;
+    },
+
+    async getCustomer(id) {
+        const storeId = this.getStoreId();
+        const docSnap = await getDoc(doc(firestore, "customers", `${storeId}_${id}`));
+        return docSnap.exists() ? docSnap.data() : null;
+    },
+
+    listenToCustomers(callback) {
+        const storeId = this.getStoreId();
+        const q = query(collection(firestore, "customers"), where("storeId", "==", storeId));
+        return onSnapshot(q, (snap) => {
+            const customers = [];
+            snap.forEach(doc => {
+                customers.push({ id: doc.id.replace(`${storeId}_`, ''), ...doc.data() });
+            });
+            callback(customers);
+        }, (err) => {
+            console.error("Firebase sync error on customers:", err);
+        });
     }
 };

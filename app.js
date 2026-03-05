@@ -22,8 +22,11 @@ window.currentState = {
     unsubProducts: null,     // Firebase snapshot listener functions
     unsubInvoices: null,
     unsubProfile: null,
+    unsubCustomers: null,
     editingInvoiceId: null,
-    editingInvoiceDate: null
+    editingInvoiceDate: null,
+    selectedCustomer: null,
+    priceType: 'retail'
 };
 
 // --- Initialization ---
@@ -233,17 +236,23 @@ window.renderView = async (viewName) => {
 
                         ${db.isAdmin() ? `
                             <h3 style="margin-bottom: 15px; color: #1e3a8a; font-weight: 600;">Administrative Tools</h3>
-                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-                                <button class="btn-secondary" onclick="renderView('reports')" style="background: #eff6ff; border-color: #bfdbfe; color: #1e40af; height: 80px;">
+                            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
+                                <button class="btn-secondary" onclick="renderView('reports')" style="background: #eff6ff; border-color: #bfdbfe; color: #1e40af; height: 80px; padding: 5px;">
                                     <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;">
-                                        <span class="material-icons-round" style="font-size: 24px;">analytics</span> 
-                                        <span style="font-size: 13px; font-weight: 700;">Reports</span>
+                                        <span class="material-icons-round" style="font-size: 20px;">analytics</span> 
+                                        <span style="font-size: 11px; font-weight: 700;">Reports</span>
                                     </div>
                                 </button>
-                                <button class="btn-secondary" onclick="renderView('management')" style="background: #fdf2f8; border-color: #fbcfe8; color: #9d174d; height: 80px;">
+                                <button class="btn-secondary" onclick="renderView('management')" style="background: #fdf2f8; border-color: #fbcfe8; color: #9d174d; height: 80px; padding: 5px;">
                                     <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;">
-                                        <span class="material-icons-round" style="font-size: 24px;">people</span> 
-                                        <span style="font-size: 13px; font-weight: 700;">Staff</span>
+                                        <span class="material-icons-round" style="font-size: 20px;">people</span> 
+                                        <span style="font-size: 11px; font-weight: 700;">Staff</span>
+                                    </div>
+                                </button>
+                                <button class="btn-secondary" onclick="renderView('customers')" style="background: #f0fdf4; border-color: #bbf7d0; color: #15803d; height: 80px; padding: 5px;">
+                                    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;">
+                                        <span class="material-icons-round" style="font-size: 20px;">assignment_ind</span> 
+                                        <span style="font-size: 11px; font-weight: 700;">Customers</span>
                                     </div>
                                 </button>
                             </div>
@@ -396,9 +405,19 @@ window.renderView = async (viewName) => {
 
                     <!-- Customer Info -->
                     <div class="card" style="padding: 15px; margin-bottom: 10px;">
-                        <label>Customer Name</label>
-                        <input type="text" id="cust-name" placeholder="Customer Name" style="margin-bottom: 10px;">
-                        <input type="tel" id="cust-phone" placeholder="Contact Number (Optional)" style="margin-bottom: 0;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                            <label style="margin-bottom: 0;">Customer Selection</label>
+                            <span id="price-tier-badge" style="font-size: 10px; padding: 2px 8px; border-radius: 10px; background: #dcfce7; color: #166534; text-transform: uppercase; font-weight: 700;">Retail Tier</span>
+                        </div>
+                        <div style="position: relative;">
+                            <input type="text" id="cust-search" placeholder="Search Customer or Walk-in..." oninput="handleCustomerSearchInput(this.value)" style="margin-bottom: 0;">
+                            <div id="cust-search-results" style="display: none; position: absolute; top: 100%; left: 0; width: 100%; background: white; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); z-index: 102; max-height: 200px; overflow-y: auto;"></div>
+                        </div>
+                        <input type="hidden" id="cust-id">
+                        <div id="selected-customer-details" style="display: none; margin-top: 10px; font-size: 13px; color: #1e3a8a; font-weight: 600;">
+                            Selected: <span id="display-cust-name"></span> (<span id="display-cust-phone"></span>)
+                            <button onclick="clearSelectedCustomer()" style="background:none; border:none; color:#ef4444; margin-left:10px; font-size:11px;">Clear</button>
+                        </div>
                     </div>
 
                     <!-- Scan / Search Area -->
@@ -436,6 +455,28 @@ window.renderView = async (viewName) => {
                 </div>
             `;
             if (currentState.cart.length > 0) renderCart();
+
+            // Restore Selected Customer UI
+            if (currentState.selectedCustomer) {
+                const c = currentState.selectedCustomer;
+                const dName = document.getElementById('display-cust-name');
+                const dPhone = document.getElementById('display-cust-phone');
+                const dDetails = document.getElementById('selected-customer-details');
+
+                if (dName && dPhone && dDetails) {
+                    dName.innerText = c.name;
+                    dPhone.innerText = c.phone;
+                    dDetails.style.display = 'block';
+                }
+
+                const badge = document.getElementById('price-tier-badge');
+                if (badge) {
+                    const priceType = c.priceType || 'retail';
+                    badge.innerText = `${priceType} Tier`;
+                    badge.style.background = priceType === 'retail' ? '#dcfce7' : priceType === 'wholesale' ? '#dbeafe' : '#fef3c7';
+                    badge.style.color = priceType === 'retail' ? '#166534' : priceType === 'wholesale' ? '#1e40af' : '#92400e';
+                }
+            }
             break;
 
         case 'invoice-preview':
@@ -476,6 +517,7 @@ window.renderView = async (viewName) => {
                             <div style="text-align: right;">
                                 <div style="color: #94a3b8; font-size: 11px; text-transform: uppercase;">Date</div>
                                 <div style="font-weight: 600;">${new Date(inv.date).toLocaleDateString()}</div>
+                                ${inv.priceType ? `<div style="font-size: 10px; color: #1e3a8a; font-weight: 700; text-transform: uppercase; margin-top: 4px;">${inv.priceType} Price</div>` : ''}
                             </div>
                         </div>
 
@@ -492,7 +534,7 @@ window.renderView = async (viewName) => {
                                     <tr style="border-bottom: 1px solid #f8fafc;">
                                         <td style="padding: 8px 0;">${item.name}</td>
                                         <td style="padding: 8px 0; text-align: center;">${item.qty}</td>
-                                        <td style="padding: 8px 0; text-align: right;">₹${(item.retailPrice * item.qty).toFixed(2)}</td>
+                                        <td style="padding: 8px 0; text-align: right;">₹${((item.priceUsed || item.retailPrice) * item.qty).toFixed(2)}</td>
                                     </tr>
                                 `).join('')}
                             </tbody>
@@ -605,6 +647,30 @@ window.renderView = async (viewName) => {
             if (window.currentState.unsubStaff) window.currentState.unsubStaff();
             window.currentState.unsubStaff = db.listenToStaff(staff => {
                 renderStaffList(staff);
+            });
+            break;
+
+        case 'customers':
+            app.innerHTML = `
+                <div class="screen active">
+                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px;">
+                        <button onclick="renderView('home')" style="background:none; border:none; padding:0;">
+                            <span class="material-icons-round" style="color: var(--text-main);">arrow_back</span>
+                        </button>
+                        <h1 style="flex: 1;">Customers</h1>
+                        <button class="btn-primary" style="width: auto; padding: 10px 20px;" onclick="showAddCustomerModal()">
+                            + Add New
+                        </button>
+                    </div>
+ 
+                    <div id="customer-list" style="margin-top: 20px; padding-bottom: 80px;">
+                        <div class="text-center text-muted">Loading customers...</div>
+                    </div>
+                </div>
+            `;
+            if (window.currentState.unsubCustomers) window.currentState.unsubCustomers();
+            window.currentState.unsubCustomers = db.listenToCustomers(customers => {
+                renderCustomerList(customers);
             });
             break;
 
@@ -1157,6 +1223,108 @@ window.confirmDeleteStaff = async (id, isInvite) => {
     }
 };
 
+// --- Customer Management Functions ---
+
+window.showAddCustomerModal = (id = null) => {
+    const modal = document.getElementById('customer-modal');
+    const form = document.getElementById('customer-form');
+    const title = document.getElementById('customer-modal-title');
+
+    if (!modal || !form) return;
+
+    form.reset();
+    document.getElementById('cust-modal-id').value = id || '';
+
+    if (id) {
+        title.innerText = 'Edit Customer';
+        db.getCustomer(id).then(customer => {
+            if (customer) {
+                document.getElementById('cust-modal-name').value = customer.name;
+                document.getElementById('cust-modal-phone').value = customer.phone;
+                document.getElementById('cust-modal-price-type').value = customer.priceType || 'retail';
+                document.getElementById('cust-modal-email').value = customer.email || '';
+                document.getElementById('cust-modal-address').value = customer.address || '';
+            }
+        });
+    } else {
+        title.innerText = 'Add New Customer';
+    }
+
+    modal.style.display = 'flex';
+};
+
+window.handleSaveCustomer = async (e) => {
+    e.preventDefault();
+    const id = document.getElementById('cust-modal-id').value;
+    const btn = e.target.querySelector('button[type="submit"]');
+
+    const customerData = {
+        name: document.getElementById('cust-modal-name').value,
+        phone: document.getElementById('cust-modal-phone').value,
+        priceType: document.getElementById('cust-modal-price-type').value,
+        email: document.getElementById('cust-modal-email').value,
+        address: document.getElementById('cust-modal-address').value
+    };
+
+    try {
+        btn.disabled = true;
+        btn.innerText = 'Saving...';
+
+        if (id) {
+            await db.updateCustomer(id, customerData);
+        } else {
+            await db.addCustomer(customerData);
+        }
+
+        document.getElementById('customer-modal').style.display = 'none';
+        alert('Customer saved successfully!');
+    } catch (err) {
+        console.error("Failed to save customer:", err);
+        alert('Error saving customer: ' + err.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerText = 'Save Customer';
+    }
+};
+
+window.renderCustomerList = (customers) => {
+    const list = document.getElementById('customer-list');
+    if (!list) return;
+
+    if (customers.length === 0) {
+        list.innerHTML = `<div class="text-center text-muted" style="margin-top: 30px;">No customers found. Click + to add.</div>`;
+        return;
+    }
+
+    list.innerHTML = customers.map(c => `
+        <div class="card" style="padding: 15px; margin-bottom: 12px;">
+            <div style="display: flex; align-items: center; gap: 15px;">
+                <div style="width: 40px; height: 40px; border-radius: 50%; background: #f0fdf4; display: flex; align-items: center; justify-content: center; color: #15803d;">
+                    <span class="material-icons-round">person</span>
+                </div>
+                <div style="flex: 1;">
+                    <div style="font-weight: 700; color: #1e3a8a;">${c.name}</div>
+                    <div style="font-size: 13px; color: #6b7280;">${c.phone} | <span style="text-transform: capitalize; color: #15803d; font-weight: 600;">${c.priceType} Price</span></div>
+                </div>
+                <div style="display: flex; gap: 10px;">
+                    <button onclick="showAddCustomerModal('${c.id}')" style="background:none; border:none; padding:5px; color:#1e3a8a;">
+                        <span class="material-icons-round" style="font-size: 20px;">edit</span>
+                    </button>
+                    <button onclick="confirmDeleteCustomer('${c.id}')" style="background:none; border:none; padding:5px; color:#ef4444;">
+                        <span class="material-icons-round" style="font-size: 20px;">delete_outline</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    `).join('');
+};
+
+window.confirmDeleteCustomer = (id) => {
+    if (confirm('Are you sure you want to delete this customer?')) {
+        db.deleteCustomer(id).then(() => alert('Customer deleted.'));
+    }
+};
+
 // --- Billing / Cart Functions ---
 // These functions handle the mathematical logic for the billing screen.
 // EDITING TIP: Modify 'calculateGST' if tax rules change.
@@ -1221,14 +1389,18 @@ window.renderCart = () => {
     }
 
     list.innerHTML = currentState.cart.map(item => {
-        const itemTotal = (item.retailPrice * item.qty).toFixed(2);
+        const priceField = currentState.priceType === 'wholesale' ? 'wholesalePrice' :
+            currentState.priceType === 'card' ? 'cardPrice' : 'retailPrice';
+        const price = item[priceField] || item.retailPrice;
+
+        const itemTotal = (price * item.qty).toFixed(2);
         total += parseFloat(itemTotal);
         return `
             <div class="card" style="padding: 10px 15px; margin-bottom: 10px;">
                 <div style="display: flex; justify-content: space-between; align-items: flex-start;">
                     <div>
                         <h3 style="color: var(--text-main); font-weight: 600;">${item.name}</h3>
-                        <div style="font-size: 12px; color: var(--text-secondary);">₹${item.retailPrice} x ${item.qty}</div>
+                        <div style="font-size: 12px; color: var(--text-secondary);">₹${price} x ${item.qty}</div>
                     </div>
                     <div style="text-align: right;">
                         <div style="font-weight: 700; color: #1e3a8a;">₹${itemTotal}</div>
@@ -1248,6 +1420,81 @@ window.renderCart = () => {
 };
 
 // --- Search Logic ---
+// --- Customer Search Logic (For Invoice) ---
+window.handleCustomerSearchInput = async (val) => {
+    const resultsPanel = document.getElementById('cust-search-results');
+    if (!val || val.length < 2) {
+        resultsPanel.style.display = 'none';
+        return;
+    }
+
+    // Since we don't have a specific global search method, we'll fetch others via db and filter local
+    // In a large db, we'd use a Firestore query. For now, we'll use onSnapshot cached data if available
+    // or fetch all (not suggested for large DBs, but okay for MVP)
+
+    // Better: We'll use a direct query for simple name prefix
+    const storeId = db.getStoreId();
+    const q = query(collection(firestore, "customers"), where("storeId", "==", storeId));
+    const snap = await getDocs(q);
+
+    const matches = [];
+    snap.forEach(doc => {
+        const data = doc.data();
+        if (data.name.toLowerCase().includes(val.toLowerCase()) || data.phone.includes(val)) {
+            matches.push({ id: doc.id.replace(`${storeId}_`, ''), ...data });
+        }
+    });
+
+    if (matches.length === 0) {
+        resultsPanel.innerHTML = '<div style="padding: 10px; font-size:12px; color:#6b7280;">No customer found.</div>';
+    } else {
+        resultsPanel.innerHTML = matches.map(c => `
+            <div onclick="selectCustomer('${c.id}', '${c.name.replace(/'/g, "\\'")}', '${c.phone}', '${c.priceType || 'retail'}')" 
+                 style="padding: 10px; border-bottom: 1px solid #f3f4f6; cursor: pointer;">
+                <div style="font-weight: 600; color: #1e3a8a; font-size:13px;">${c.name}</div>
+                <div style="font-size: 11px; color: #6b7280;">${c.phone} | ${c.priceType || 'retail'} tier</div>
+            </div>
+        `).join('');
+    }
+    resultsPanel.style.display = 'block';
+};
+
+window.selectCustomer = (id, name, phone, priceType) => {
+    window.currentState.selectedCustomer = { id, name, phone, priceType };
+    window.currentState.priceType = priceType;
+
+    document.getElementById('display-cust-name').innerText = name;
+    document.getElementById('display-cust-phone').innerText = phone;
+    document.getElementById('selected-customer-details').style.display = 'block';
+    document.getElementById('cust-search-results').style.display = 'none';
+    document.getElementById('cust-search').value = '';
+
+    const badge = document.getElementById('price-tier-badge');
+    if (badge) {
+        badge.innerText = `${priceType} Tier`;
+        badge.style.background = priceType === 'retail' ? '#dcfce7' : priceType === 'wholesale' ? '#dbeafe' : '#fef3c7';
+        badge.style.color = priceType === 'retail' ? '#166534' : priceType === 'wholesale' ? '#1e40af' : '#92400e';
+    }
+
+    // Refresh cart to show new prices
+    renderCart();
+};
+
+window.clearSelectedCustomer = () => {
+    window.currentState.selectedCustomer = null;
+    window.currentState.priceType = 'retail';
+
+    document.getElementById('selected-customer-details').style.display = 'none';
+    const badge = document.getElementById('price-tier-badge');
+    if (badge) {
+        badge.innerText = `Retail Tier`;
+        badge.style.background = '#dcfce7';
+        badge.style.color = '#166534';
+    }
+
+    renderCart();
+};
+
 window.handleSearchInput = async (val) => {
     const resultsDiv = document.getElementById('search-results');
     if (!val || val.length < 2) {
@@ -1264,13 +1511,20 @@ window.handleSearchInput = async (val) => {
 
     if (hits.length > 0) {
         resultsDiv.style.display = 'block';
-        resultsDiv.innerHTML = hits.map(p => `
-            <div onclick="addToCart('${p.barcode}'); document.getElementById('search-results').style.display='none'; document.getElementById('product-search').value='';" 
-                style="padding: 10px; border-bottom: 1px solid #eee; cursor: pointer;">
-                <div style="font-weight: 600;">${p.name}</div>
-                <div style="font-size: 12px; color: #666;">SKU: ${p.barcode} | ₹${p.retailPrice}</div>
-            </div>
-        `).join('');
+        resultsDiv.innerHTML = hits.map(p => {
+            const priceField = currentState.priceType === 'wholesale' ? 'wholesalePrice' :
+                currentState.priceType === 'card' ? 'cardPrice' : 'retailPrice';
+            const price = (p[priceField] !== undefined && p[priceField] !== null && p[priceField] !== 0)
+                ? p[priceField] : p.retailPrice;
+
+            return `
+                <div onclick="addToCart('${p.barcode}'); document.getElementById('search-results').style.display='none'; document.getElementById('product-search').value='';" 
+                    style="padding: 10px; border-bottom: 1px solid #eee; cursor: pointer;">
+                    <div style="font-weight: 600;">${p.name}</div>
+                    <div style="font-size: 12px; color: #666;">SKU: ${p.barcode} | ₹${price}</div>
+                </div>
+            `;
+        }).join('');
     } else {
         resultsDiv.style.display = 'none';
     }
@@ -1374,8 +1628,19 @@ window.saveSettings = async (e) => {
 // The coordinates are (X, Y). increasing Y moves text down.
 
 window.generateInvoice = async () => {
-    const custName = document.getElementById('cust-name').value || 'Guest';
-    const custPhone = document.getElementById('cust-phone').value || '';
+    let custName = 'Guest';
+    let custPhone = '';
+    let custId = null;
+
+    if (currentState.selectedCustomer) {
+        custName = currentState.selectedCustomer.name;
+        custPhone = currentState.selectedCustomer.phone;
+        custId = currentState.selectedCustomer.id;
+    } else {
+        const searchInput = document.getElementById('cust-search');
+        if (searchInput && searchInput.value) custName = searchInput.value;
+    }
+
     if (currentState.cart.length === 0) {
         alert("Cart is empty!");
         return;
@@ -1386,12 +1651,30 @@ window.generateInvoice = async () => {
     let totalGST = 0;
     let totalAmount = 0;
 
-    currentState.cart.forEach(item => {
-        const itemTotal = item.retailPrice * item.qty;
+    const processedItems = currentState.cart.map(item => {
+        const priceField = currentState.priceType === 'wholesale' ? 'wholesalePrice' :
+            currentState.priceType === 'card' ? 'cardPrice' : 'retailPrice';
+        const price = (item[priceField] !== undefined && item[priceField] !== null && item[priceField] !== 0)
+            ? item[priceField] : item.retailPrice;
+
+        const slab = parseFloat(item.gstSlab) || 0;
+        const gstAmountPerUnit = (price * slab) / 100;
+        const itemTotal = price * item.qty;
+
         totalAmount += itemTotal;
-        const itemTax = (item.gstAmount || 0) * item.qty;
+        const itemTax = gstAmountPerUnit * item.qty;
         totalGST += itemTax;
         totalTaxable += (itemTotal - itemTax);
+
+        return {
+            ...item,
+            wholesalePrice: item.wholesalePrice || 0,
+            cardPrice: item.cardPrice || 0,
+            priceUsed: price,
+            gstAmount: gstAmountPerUnit, // Calculated for the price used
+            cgst: gstAmountPerUnit / 2,
+            sgst: gstAmountPerUnit / 2
+        };
     });
 
     // 2. Create Object (use existing ID and Date if editing)
@@ -1403,7 +1686,9 @@ window.generateInvoice = async () => {
         date: activeDate,
         customerName: custName,
         customerPhone: custPhone,
-        items: [...currentState.cart],
+        customerId: custId,
+        priceType: currentState.priceType,
+        items: processedItems,
         totalAmount: totalAmount,
         totalTax: totalGST,
         totalTaxable: totalTaxable
@@ -1422,6 +1707,8 @@ window.generateInvoice = async () => {
     currentState.cart = [];
     currentState.editingInvoiceId = null;
     currentState.editingInvoiceDate = null;
+    currentState.selectedCustomer = null;
+    currentState.priceType = 'retail';
 
     renderView('invoice-preview');
 };
@@ -1469,7 +1756,15 @@ async function getGeneratedPdfBlob() {
         doc.text(`Phone: ${invoice.customerPhone}`, 14, 75);
     }
 
-    let y = 80; // This y is for the table header
+    if (invoice.priceType) {
+        doc.setFontSize(8);
+        doc.setTextColor(100);
+        doc.text(`Price Tier: ${invoice.priceType.toUpperCase()}`, 14, 79);
+        doc.setTextColor(0);
+        doc.setFontSize(10);
+    }
+
+    let y = 84; // This y is for the table header
     doc.line(10, y, 200, y); // Line before table header
     y += 10; // Move y down for table header
     doc.setFillColor(240, 240, 240);
@@ -1483,10 +1778,11 @@ async function getGeneratedPdfBlob() {
     y += 10;
 
     invoice.items.forEach(item => {
-        const itemTotal = (item.retailPrice * item.qty).toFixed(2);
+        const price = item.priceUsed || item.retailPrice;
+        const itemTotal = (price * item.qty).toFixed(2);
         doc.text(item.name.substring(0, 30), 14, y);
         doc.text(String(item.qty), 100, y);
-        doc.text(String(item.retailPrice), 130, y);
+        doc.text(String(price), 130, y);
         doc.text(String(itemTotal), 170, y);
         y += 8;
     });

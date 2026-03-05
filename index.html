@@ -6,7 +6,7 @@
     <meta name="viewport"
         content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="theme-color" content="#1e3a8a">
-    <title>BigStore Pro v3.4.7</title>
+    <title>BigStore Pro v3.5</title>
 
     <!-- PWA Manifest -->
     <link rel="manifest" href="manifest.json">
@@ -172,6 +172,48 @@
                     required.
                 </p>
                 <button type="submit" class="btn-primary">Create Account</button>
+            </form>
+        </div>
+    </div>
+    <!-- Customer Modal -->
+    <div id="customer-modal" class="modal">
+        <div class="modal-content">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2 id="customer-modal-title">Add New Customer</h2>
+                <span class="material-icons-round" style="cursor: pointer; color: #6b7280;"
+                    onclick="document.getElementById('customer-modal').style.display='none'">close</span>
+            </div>
+
+            <form id="customer-form" onsubmit="handleSaveCustomer(event)">
+                <input type="hidden" id="cust-modal-id">
+                <div style="margin-bottom: 15px;">
+                    <label>Customer Name *</label>
+                    <input type="text" id="cust-modal-name" required placeholder="Full Name">
+                </div>
+                <div style="margin-bottom: 15px;">
+                    <label>Phone Number *</label>
+                    <input type="tel" id="cust-modal-phone" required placeholder="e.g. 9876543210">
+                </div>
+                <div style="margin-bottom: 15px;">
+                    <label>Price Category *</label>
+                    <select id="cust-modal-price-type" required
+                        style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #ddd;">
+                        <option value="retail">Retail Price</option>
+                        <option value="wholesale">Wholesale Price</option>
+                        <option value="card">Card Price</option>
+                    </select>
+                </div>
+                <div style="margin-bottom: 15px;">
+                    <label>Email (Optional)</label>
+                    <input type="email" id="cust-modal-email" placeholder="customer@example.com">
+                </div>
+                <div style="margin-bottom: 20px;">
+                    <label>Address (Optional)</label>
+                    <textarea id="cust-modal-address" rows="2" placeholder="Building, Street, Area..."
+                        style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #ddd;"></textarea>
+                </div>
+
+                <button type="submit" class="btn-primary">Save Customer</button>
             </form>
         </div>
     </div>
