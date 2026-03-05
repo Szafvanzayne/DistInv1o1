@@ -20,6 +20,7 @@ window.currentState = {
     currentPdfBlob: null,    // The PDF file data
     unsubProducts: null,     // Firebase snapshot listener functions
     unsubInvoices: null,
+    unsubProfile: null,
     editingInvoiceId: null,
     editingInvoiceDate: null
 };
@@ -44,6 +45,17 @@ document.addEventListener('DOMContentLoaded', async () => {
             // Fetch User Profile (Role-Based Access)
             const profile = await db.fetchUserProfile(user.uid, user.email);
             console.log("User profile loaded:", profile.role);
+
+            // Session Guardian: Watch if profile is deleted by admin
+            if (window.currentState.unsubProfile) window.currentState.unsubProfile();
+            window.currentState.unsubProfile = db.listenToUserProfile(user.uid, (p) => {
+                if (!p) {
+                    // Profile deleted! Force logout
+                    console.warn("Access revoked by admin. Logging out...");
+                    alert("Your access has been revoked by an administrator.");
+                    signOut(auth);
+                }
+            });
 
             // Show lower navigation tools
             const nav = document.querySelector('.bottom-nav');
@@ -669,7 +681,7 @@ window.renderView = async (viewName) => {
                     </div>
 
                     <div style="text-align: center; margin-top: 30px; color: var(--text-secondary);">
-                        <p>App Version: <strong>v3.4.1 (Cloud Sync Active)</strong></p>
+                        <p>App Version: <strong>v3.4.2 (Cloud Sync Active)</strong></p>
                         <p style="font-size: 12px; margin-top: 5px;">&copy; 2026 BigStore Pro</p>
                     </div>
                     

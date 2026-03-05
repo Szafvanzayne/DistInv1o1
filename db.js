@@ -57,16 +57,19 @@ export const db = {
             if (docSnap.exists()) {
                 this.profile = docSnap.data();
 
-                // DATA REPAIR: If user is an admin but has a staff invite, downgrade them
-                if (inviteData && this.profile.role !== 'staff') {
-                    console.log("Repairing role for:", email);
+                // DATA REPAIR: If user is an admin but has a staff invite, sync the role/store
+                if (inviteData && (this.profile.role !== inviteData.role || this.profile.storeId !== inviteData.storeId)) {
+                    console.log("Syncing role/store from invite for:", email);
                     const updateObj = {
-                        role: 'staff',
+                        role: inviteData.role || 'staff',
                         storeId: inviteData.storeId,
                         invitedBy: inviteData.invitedBy
                     };
                     await updateDoc(userDocRef, updateObj);
                     this.profile = { ...this.profile, ...updateObj };
+
+                    // Cleanup invite after syncing
+                    await deleteDoc(doc(firestore, "staff_invites", email.toLowerCase()));
                 }
 
                 // Ensure email is stored if missing
@@ -113,6 +116,12 @@ export const db = {
                     });
                 }
                 await setDoc(userDocRef, this.profile);
+
+                // Cleanup invite after registration
+                if (inviteData) {
+                    await deleteDoc(doc(firestore, "staff_invites", email.toLowerCase()));
+                }
+
                 return this.profile;
             }
         } catch (err) {
@@ -370,5 +379,11 @@ export const db = {
         const q = query(collection(firestore, "users"), where("role", "==", "store_admin"));
         const snap = await getDocs(q);
         return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    },
+
+    listenToUserProfile(uid, callback) {
+        return onSnapshot(doc(firestore, "users", uid), (doc) => {
+            callback(doc.exists() ? doc.data() : null);
+        });
     }
 };

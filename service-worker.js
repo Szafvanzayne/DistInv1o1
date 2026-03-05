@@ -1,4 +1,4 @@
-const CACHE_NAME = 'bigstore-pro-v11';
+const CACHE_NAME = 'bigstore-pro-v12';
 const ASSETS = [
     './',
     './index.html',
