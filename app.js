@@ -9,9 +9,10 @@
  * 4. Data Persistence (calls to db.js to save to IndexedDB)
  */
 
-import { db, auth, firebaseConfig } from './db.js?v=2.3';
+import { db, auth, firestore, firebaseConfig } from './db.js?v=2.3';
 import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-auth.js";
+import { collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
 
 window.currentState = {
     view: 'home',            // Current visible screen
@@ -232,11 +233,18 @@ window.renderView = async (viewName) => {
                                     <span style="font-size: 12px;">Add Stock</span>
                                 </div>
                             </button>
+
+                            <button class="btn-secondary" onclick="renderView('customers')" style="background: #f0fdf4; border-color: #bbf7d0; color: #15803d; height: 60px;">
+                                <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;">
+                                    <span class="material-icons-round" style="font-size: 20px;">assignment_ind</span> 
+                                    <span style="font-size: 12px; font-weight: 700;">Customers</span>
+                                </div>
+                            </button>
                         </div>
 
                         ${db.isAdmin() ? `
                             <h3 style="margin-bottom: 15px; color: #1e3a8a; font-weight: 600;">Administrative Tools</h3>
-                            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
                                 <button class="btn-secondary" onclick="renderView('reports')" style="background: #eff6ff; border-color: #bfdbfe; color: #1e40af; height: 80px; padding: 5px;">
                                     <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;">
                                         <span class="material-icons-round" style="font-size: 20px;">analytics</span> 
@@ -247,12 +255,6 @@ window.renderView = async (viewName) => {
                                     <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;">
                                         <span class="material-icons-round" style="font-size: 20px;">people</span> 
                                         <span style="font-size: 11px; font-weight: 700;">Staff</span>
-                                    </div>
-                                </button>
-                                <button class="btn-secondary" onclick="renderView('customers')" style="background: #f0fdf4; border-color: #bbf7d0; color: #15803d; height: 80px; padding: 5px;">
-                                    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;">
-                                        <span class="material-icons-round" style="font-size: 20px;">assignment_ind</span> 
-                                        <span style="font-size: 11px; font-weight: 700;">Customers</span>
                                     </div>
                                 </button>
                             </div>
@@ -409,9 +411,14 @@ window.renderView = async (viewName) => {
                             <label style="margin-bottom: 0;">Customer Selection</label>
                             <span id="price-tier-badge" style="font-size: 10px; padding: 2px 8px; border-radius: 10px; background: #dcfce7; color: #166534; text-transform: uppercase; font-weight: 700;">Retail Tier</span>
                         </div>
-                        <div style="position: relative;">
-                            <input type="text" id="cust-search" placeholder="Search Customer or Walk-in..." oninput="handleCustomerSearchInput(this.value)" style="margin-bottom: 0;">
-                            <div id="cust-search-results" style="display: none; position: absolute; top: 100%; left: 0; width: 100%; background: white; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); z-index: 102; max-height: 200px; overflow-y: auto;"></div>
+                        <div style="position: relative; display: flex; gap: 10px;">
+                            <div style="flex: 1; position: relative;">
+                                <input type="text" id="cust-search" placeholder="Search Customer or Walk-in..." oninput="handleCustomerSearchInput(this.value)" style="margin-bottom: 0;">
+                                <div id="cust-search-results" style="display: none; position: absolute; top: 100%; left: 0; width: 100%; background: white; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); z-index: 102; max-height: 200px; overflow-y: auto;"></div>
+                            </div>
+                            <button onclick="showAddCustomerModal()" style="background: #1e3a8a; color: white; border: none; border-radius: 8px; width: 45px; display: flex; align-items: center; justify-content: center; height: 45px;">
+                                <span class="material-icons-round">person_add</span>
+                            </button>
                         </div>
                         <input type="hidden" id="cust-id">
                         <div id="selected-customer-details" style="display: none; margin-top: 10px; font-size: 13px; color: #1e3a8a; font-weight: 600;">
