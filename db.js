@@ -8,7 +8,8 @@ import { getAuth } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-auth
 import { getFirestore, enableMultiTabIndexedDbPersistence, collection, doc, setDoc, getDoc, getDocs, deleteDoc, query, where, serverTimestamp, onSnapshot, updateDoc, increment } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
 
 
-const firebaseConfig = {
+// Initialize Firebase
+export const firebaseConfig = {
     apiKey: "AIzaSyB8YYpw79ldinopbmLhccGNXRI-g3HTafQ",
     authDomain: "bigstore-pro-cloud.firebaseapp.com",
     projectId: "bigstore-pro-cloud",
@@ -18,7 +19,6 @@ const firebaseConfig = {
     measurementId: "G-9H0F6XYBMT"
 };
 
-// Initialize Firebase
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const firestore = getFirestore(app);

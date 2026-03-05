@@ -9,8 +9,9 @@
  * 4. Data Persistence (calls to db.js to save to IndexedDB)
  */
 
-import { db, auth } from './db.js?v=2.3';
-import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-auth.js";
+import { db, auth, firebaseConfig } from './db.js?v=2.3';
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
+import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-auth.js";
 
 window.currentState = {
     view: 'home',            // Current visible screen
@@ -685,7 +686,7 @@ window.renderView = async (viewName) => {
                     </div>
 
                     <div style="text-align: center; margin-top: 30px; color: var(--text-secondary);">
-                        <p>App Version: <strong>v3.4.5 (Cloud Sync Active)</strong></p>
+                        <p>App Version: <strong>v3.4.6 (Cloud Sync Active)</strong></p>
                         <p style="font-size: 12px; margin-top: 5px;">&copy; 2026 BigStore Pro</p>
                     </div>
                     
@@ -779,17 +780,22 @@ window.handleDirectStaffCreate = async (e) => {
     }
 
     const roleLabel = role === 'store_admin' ? 'Store Admin' : 'Staff';
-    if (!confirm(`Create ${roleLabel} account for ${email}?\n\nNOTE: You will be logged out and need to sign back in as Admin after this.`)) {
+    if (!confirm(`Create ${roleLabel} account for ${email}?`)) {
         return;
     }
+
+    // Secondary App Helper to prevent current Admin logout
+    const tempAppName = `TempApp_${Date.now()}`;
+    const tempApp = initializeApp(firebaseConfig, tempAppName);
+    const tempAuth = getAuth(tempApp);
 
     try {
         btn.disabled = true;
         btn.innerText = 'Creating account...';
 
-        // 1. Create Auth Account
+        // 1. Create Auth Account using secondary instance
         try {
-            const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+            const userCredential = await createUserWithEmailAndPassword(tempAuth, email, password);
             const uid = userCredential.user.uid;
 
             // 2. Create Firestore Profile (Immediate Activation)
@@ -810,9 +816,14 @@ window.handleDirectStaffCreate = async (e) => {
                 });
             }
 
-            await signOut(auth);
-            alert(`Account created successfully!\n\nPlease log back in with your Admin credentials.`);
+            // Clean up secondary app
+            await signOut(tempAuth);
+            await tempApp.delete();
+
+            alert(`${roleLabel} account created successfully!`);
         } catch (authErr) {
+            // Clean up secondary app on error too
+            await tempApp.delete();
             if (authErr.code === 'auth/email-already-in-use') {
                 // If account exists, fall back to linking/invite system
                 await db.addStaffInvite(email, role, targetStoreId, { ...storeDetails, staffLimit });
@@ -1031,11 +1042,15 @@ window.showAddStaffModal = async () => {
     toggleStaffFields('staff');
 
     // If Super Admin, populate store list
+    const storeSelection = document.getElementById('staff-store-selection');
     if (db.isSuperAdmin()) {
+        if (storeSelection) storeSelection.style.display = 'block';
         const storeSelect = document.getElementById('staff-store-id');
         const stores = await db.getAllStores();
         storeSelect.innerHTML = '<option value="">Select a Store...</option>' +
             stores.map(s => `<option value="${s.id}">${s.name} (${s.email})</option>`).join('');
+    } else {
+        if (storeSelection) storeSelection.style.display = 'none';
     }
 
     const limitContainer = document.getElementById('staff-limit-container');
