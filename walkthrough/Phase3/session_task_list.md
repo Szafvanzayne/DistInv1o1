@@ -7,6 +7,8 @@
     - [x] Update `handleSaveStaff` to handle role updates <!-- id: 4 -->
 - [x] Fix: Missing staff member glitch for Super Admin (v3.5.1)
 - [x] Security: Prevent Store Admins from seeing/editing Super Admins <!-- id: 7 -->
-    - [x] Filter Super Admins from `listenToStaff` for non-master users <!-- id: 8 -->
-    - [x] Update `renderStaffList` UI logic to hide management buttons for higher roles <!-- id: 9 -->
-- [x] Verify security hardening and push changes <!-- id: 10 -->
+- [x] Security: Prevent Store Admins from seeing other Store Admins <!-- id: 11 -->
+    - [x] Update `listenToStaff` with role-based filtering <!-- id: 12 -->
+- [x] Fix: Store details not persisting during Data Repair <!-- id: 14 -->
+    - [x] Update `fetchUserProfile` to sync `storeDetails` from invites <!-- id: 15 -->
+- [x] Verify restrictions and data persistence, then push changes <!-- id: 13 -->

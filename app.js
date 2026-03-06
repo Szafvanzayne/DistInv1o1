@@ -896,10 +896,11 @@ window.handleDirectStaffCreate = async (e) => {
             const uid = userCredential.user.uid;
 
             // 2. Create Firestore Profile (Immediate Activation)
+            // SECURITY: Store Admins ALWAYS use their own UID as their store identity
             const profileData = {
                 email: email.toLowerCase(),
                 role: role,
-                storeId: targetStoreId || uid,
+                storeId: role === 'store_admin' ? uid : (targetStoreId || uid),
                 status: 'active'
             };
             await db.createUserProfile(uid, profileData);

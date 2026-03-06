@@ -68,6 +68,14 @@ export const db = {
                     await updateDoc(userDocRef, updateObj);
                     this.profile = { ...this.profile, ...updateObj };
 
+                    // If they are being promoted to Store Admin, ensure their store details are initialized/synced
+                    if (this.profile.role === 'store_admin' && inviteData.storeDetails) {
+                        await this.updateStoreDetails(this.profile.storeId, {
+                            ...inviteData.storeDetails,
+                            email: email.toLowerCase()
+                        });
+                    }
+
                     // Cleanup invite after syncing
                     await deleteDoc(doc(firestore, "staff_invites", email.toLowerCase()));
                 }
@@ -367,11 +375,17 @@ export const db = {
 
         const updateCallback = () => {
             const isUserSuperAdmin = this.isSuperAdmin();
+            const isUserStoreAdmin = this.profile && this.profile.role === 'store_admin';
             let people = [...users];
 
-            // SECURITY: If the viewer is NOT a Super Admin, hide all Super Admin accounts from the list
+            // SECURITY: If the viewer is NOT a Super Admin, hide all Super Admin accounts
             if (!isUserSuperAdmin) {
                 people = people.filter(p => p.role !== 'super_admin');
+            }
+
+            // USER REQUIREMENT: Store Managers should only see their 'staff' (and their own account)
+            if (isUserStoreAdmin) {
+                people = people.filter(p => p.role === 'staff' || p.uid === auth.currentUser.uid);
             }
 
             invites.forEach(inv => {
@@ -379,7 +393,10 @@ export const db = {
                 if (!people.some(p => p.email === inv.email)) {
                     // SECURITY: Also hide Super Admin invites from non-masters
                     if (isUserSuperAdmin || inv.role !== 'super_admin') {
-                        people.push({ uid: inv.id, email: inv.email, role: inv.role || 'staff', status: 'pending' });
+                        // USER REQUIREMENT: Store Managers only see Staff invites
+                        if (isUserSuperAdmin || inv.role === 'staff') {
+                            people.push({ uid: inv.id, email: inv.email, role: inv.role || 'staff', status: 'pending' });
+                        }
                     }
                 }
             });
