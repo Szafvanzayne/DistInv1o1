@@ -366,11 +366,21 @@ export const db = {
         let invites = [];
 
         const updateCallback = () => {
-            const people = [...users];
+            const isUserSuperAdmin = this.isSuperAdmin();
+            let people = [...users];
+
+            // SECURITY: If the viewer is NOT a Super Admin, hide all Super Admin accounts from the list
+            if (!isUserSuperAdmin) {
+                people = people.filter(p => p.role !== 'super_admin');
+            }
+
             invites.forEach(inv => {
                 // Don't duplicate if they already registered
                 if (!people.some(p => p.email === inv.email)) {
-                    people.push({ uid: inv.id, email: inv.email, role: inv.role || 'staff', status: 'pending' });
+                    // SECURITY: Also hide Super Admin invites from non-masters
+                    if (isUserSuperAdmin || inv.role !== 'super_admin') {
+                        people.push({ uid: inv.id, email: inv.email, role: inv.role || 'staff', status: 'pending' });
+                    }
                 }
             });
             callback(people);

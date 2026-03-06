@@ -1244,16 +1244,44 @@ window.renderStaffList = (staff) => {
                     </div>
                 </div>
             </div>
-            ${person.uid !== window.currentState.user.uid ? `
-                <div style="display: flex; gap: 10px;">
-                    <button onclick="showEditStaffModal('${person.uid}', '${person.email}', '${person.role}', '${person.status}')" style="background:none; border:none; color: #1e3a8a; padding: 5px;">
-                        <span class="material-icons-round" style="font-size: 20px;">edit</span>
-                    </button>
-                    <button onclick="confirmDeleteStaff('${person.uid}', ${person.status === 'pending'})" style="background:none; border:none; color: #ef4444; padding: 5px;">
-                        <span class="material-icons-round" style="font-size: 20px;">delete_outline</span>
-                    </button>
-                </div>
-            ` : ''}
+            ${(() => {
+            const currentUser = window.currentState.user;
+            const isSuper = db.profile && db.profile.role === 'super_admin';
+            const isAdmin = db.profile && db.profile.role === 'store_admin';
+
+            // Don't show manage buttons for YOURSELF
+            if (person.uid === currentUser.uid) return '';
+
+            // Super Admin can manage anyone
+            if (isSuper) {
+                return `
+                        <div style="display: flex; gap: 10px;">
+                            <button onclick="showEditStaffModal('${person.uid}', '${person.email}', '${person.role}', '${person.status}')" style="background:none; border:none; color: #1e3a8a; padding: 5px;">
+                                <span class="material-icons-round" style="font-size: 20px;">edit</span>
+                            </button>
+                            <button onclick="confirmDeleteStaff('${person.uid}', ${person.status === 'pending'})" style="background:none; border:none; color: #ef4444; padding: 5px;">
+                                <span class="material-icons-round" style="font-size: 20px;">delete_outline</span>
+                            </button>
+                        </div>
+                    `;
+            }
+
+            // Store Admin can only manage STAFF (not other admins or super admins)
+            if (isAdmin && person.role === 'staff') {
+                return `
+                        <div style="display: flex; gap: 10px;">
+                            <button onclick="showEditStaffModal('${person.uid}', '${person.email}', '${person.role}', '${person.status}')" style="background:none; border:none; color: #1e3a8a; padding: 5px;">
+                                <span class="material-icons-round" style="font-size: 20px;">edit</span>
+                            </button>
+                            <button onclick="confirmDeleteStaff('${person.uid}', ${person.status === 'pending'})" style="background:none; border:none; color: #ef4444; padding: 5px;">
+                                <span class="material-icons-round" style="font-size: 20px;">delete_outline</span>
+                            </button>
+                        </div>
+                    `;
+            }
+
+            return ''; // No management allowed
+        })()}
         </div>
     `).join('');
 };
