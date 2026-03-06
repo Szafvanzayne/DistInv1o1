@@ -349,30 +349,48 @@ export const db = {
     },
 
     listenToStaff(callback) {
-        const storeId = this.getStoreId();
-        const qUsers = query(collection(firestore, "users"), where("storeId", "==", storeId));
-        const qInvites = query(collection(firestore, "staff_invites"), where("storeId", "==", storeId));
+        const isMaster = this.isSuperAdmin() && !this.profile.activeStoreId;
+        let qUsers, qInvites;
 
-        // Combined listener setup
-        const unsubUsers = onSnapshot(qUsers, (uSnap) => {
-            getDocs(qInvites).then(iSnap => {
-                const people = [];
-                // Active Users
-                uSnap.forEach(doc => {
-                    people.push({ uid: doc.id, ...doc.data(), status: 'active' });
-                });
-                // Pending Invites
-                iSnap.forEach(doc => {
-                    const data = doc.data();
-                    // Don't duplicate if they already registered
-                    if (!people.some(p => p.email === data.email)) {
-                        people.push({ uid: doc.id, email: data.email, role: data.role || 'staff', status: 'pending' });
-                    }
-                });
-                callback(people);
+        if (isMaster) {
+            // Global view for Super Admin on Master Dashboard
+            qUsers = collection(firestore, "users");
+            qInvites = collection(firestore, "staff_invites");
+        } else {
+            const storeId = this.getStoreId();
+            qUsers = query(collection(firestore, "users"), where("storeId", "==", storeId));
+            qInvites = query(collection(firestore, "staff_invites"), where("storeId", "==", storeId));
+        }
+
+        let users = [];
+        let invites = [];
+
+        const updateCallback = () => {
+            const people = [...users];
+            invites.forEach(inv => {
+                // Don't duplicate if they already registered
+                if (!people.some(p => p.email === inv.email)) {
+                    people.push({ uid: inv.id, email: inv.email, role: inv.role || 'staff', status: 'pending' });
+                }
             });
+            callback(people);
+        };
+
+        const unsubUsers = onSnapshot(qUsers, (snap) => {
+            users = snap.docs.map(doc => ({ uid: doc.id, ...doc.data(), status: 'active' }));
+            updateCallback();
         });
-        return unsubUsers;
+
+        const unsubInvites = onSnapshot(qInvites, (snap) => {
+            invites = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            updateCallback();
+        });
+
+        // Combined unsubscribe cleanup
+        return () => {
+            unsubUsers();
+            unsubInvites();
+        };
     },
 
     async deleteStaff(uidOrInviteId, isInvite = false) {
@@ -408,6 +426,15 @@ export const db = {
         await setDoc(userDocRef, {
             ...data,
             createdAt: serverTimestamp()
+        });
+        return true;
+    },
+
+    async updateUserProfile(uid, data) {
+        const userDocRef = doc(firestore, "users", uid);
+        await updateDoc(userDocRef, {
+            ...data,
+            updatedAt: serverTimestamp()
         });
         return true;
     },

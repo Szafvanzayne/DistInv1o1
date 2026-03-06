@@ -811,6 +811,30 @@ window.handleDirectStaffCreate = async (e) => {
     const staffLimit = staffLimitInput ? parseInt(staffLimitInput.value) : 3;
     const btn = e.target.querySelector('button');
 
+    // --- Update Handling Branch ---
+    if (window.editingStaffUid) {
+        try {
+            btn.disabled = true;
+            btn.innerText = 'Updating...';
+
+            const profileData = {
+                role: role,
+                storeId: document.getElementById('staff-store-id')?.value || db.getStoreId()
+            };
+
+            await db.updateUserProfile(window.editingStaffUid, profileData);
+
+            alert("Staff role updated successfully!");
+            document.getElementById('staff-modal').style.display = 'none';
+        } catch (err) {
+            alert("Failed to update: " + err.message);
+        } finally {
+            btn.disabled = false;
+            btn.innerText = 'Update Account';
+        }
+        return;
+    }
+
     // Security Check: Only Super Admin can create Store Admins
     if (role === 'store_admin' && !db.isSuperAdmin()) {
         alert("Action Denied: Only Super Admins can create Store Admin accounts.");
@@ -1098,8 +1122,19 @@ window.renderSalesChart = (hourlyData) => {
 // --- Staff Management Functions ---
 
 window.showAddStaffModal = async () => {
+    document.getElementById('staff-modal-title').innerText = 'Manage Users';
     document.getElementById('staff-email').value = '';
+    document.getElementById('staff-email').disabled = false;
     document.getElementById('staff-password').value = '';
+
+    const passwordField = document.getElementById('staff-password').parentElement;
+    if (passwordField) passwordField.style.display = 'block';
+    document.getElementById('staff-password').required = true;
+
+    const submitBtn = document.querySelector('#staff-creation-form button[type="submit"]');
+    submitBtn.innerText = 'Create Account';
+
+    window.editingStaffUid = null;
 
     // Dynamic Role Selection: Store Admins can only create Staff
     const roleSelect = document.getElementById('staff-role');
@@ -1210,12 +1245,40 @@ window.renderStaffList = (staff) => {
                 </div>
             </div>
             ${person.uid !== window.currentState.user.uid ? `
-                <button onclick="confirmDeleteStaff('${person.uid}', ${person.status === 'pending'})" style="background:none; border:none; color: #ef4444; padding: 5px;">
-                    <span class="material-icons-round" style="font-size: 20px;">delete_outline</span>
-                </button>
+                <div style="display: flex; gap: 10px;">
+                    <button onclick="showEditStaffModal('${person.uid}', '${person.email}', '${person.role}', '${person.status}')" style="background:none; border:none; color: #1e3a8a; padding: 5px;">
+                        <span class="material-icons-round" style="font-size: 20px;">edit</span>
+                    </button>
+                    <button onclick="confirmDeleteStaff('${person.uid}', ${person.status === 'pending'})" style="background:none; border:none; color: #ef4444; padding: 5px;">
+                        <span class="material-icons-round" style="font-size: 20px;">delete_outline</span>
+                    </button>
+                </div>
             ` : ''}
         </div>
     `).join('');
+};
+
+window.showEditStaffModal = (uid, email, role, status) => {
+    showAddStaffModal(); // Open the modal first to set up fields
+
+    document.getElementById('staff-modal-title').innerText = 'Edit Staff Member';
+    document.getElementById('staff-email').value = email;
+    document.getElementById('staff-email').disabled = true; // Email cannot be changed
+    document.getElementById('staff-role').value = role;
+
+    // Hide password for edits
+    const passwordField = document.getElementById('staff-password').parentElement;
+    if (passwordField) passwordField.style.display = 'none';
+    document.getElementById('staff-password').required = false;
+
+    // Change button text
+    const submitBtn = document.querySelector('#staff-creation-form button[type="submit"]');
+    submitBtn.innerText = 'Update Account';
+
+    // Store UID for the update handler
+    window.editingStaffUid = uid;
+
+    toggleStaffFields(role);
 };
 
 window.confirmDeleteStaff = async (id, isInvite) => {
