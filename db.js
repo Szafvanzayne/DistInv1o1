@@ -171,8 +171,16 @@ export const db = {
         if (this.profile && this.profile.storeId) {
             return this.profile.storeId;
         }
+
         const user = auth.currentUser;
         if (!user) throw new Error("User not authenticated.");
+
+        // SECURITY: Staff MUST have a storeId assigned. Only Store Admins default to their UID.
+        if (this.profile && this.profile.role === 'staff') {
+            console.error("Security Breach/Configuration Error: Staff member has no Store ID.");
+            throw new Error("Access Denied: Your account is not linked to a store. Contact your manager.");
+        }
+
         return user.uid; // Using the authenticated user's UID as their isolated Store ID
     },
 

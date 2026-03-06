@@ -8,7 +8,8 @@
 - [x] Fix: Missing staff member glitch for Super Admin (v3.5.1)
 - [x] Security: Prevent Store Admins from seeing/editing Super Admins <!-- id: 7 -->
 - [x] Security: Prevent Store Admins from seeing other Store Admins <!-- id: 11 -->
-    - [x] Update `listenToStaff` with role-based filtering <!-- id: 12 -->
-- [x] Fix: Store details not persisting during Data Repair <!-- id: 14 -->
-    - [x] Update `fetchUserProfile` to sync `storeDetails` from invites <!-- id: 15 -->
-- [x] Verify restrictions and data persistence, then push changes <!-- id: 13 -->
+- [x] Security: Verify Cross-Store Isolation <!-- id: 16 -->
+    - [x] Audit `db.js` for queries missing `storeId` filters <!-- id: 17 -->
+    - [x] Audit `app.js` for potential data leaks in global views <!-- id: 18 -->
+    - [x] Harden `getStoreId` in `db.js` <!-- id: 21 -->
+- [x] Final Verification and Push <!-- id: 20 -->
