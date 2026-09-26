@@ -1,0 +1,109 @@
+================================================================================
+BIGSTORE PRO (DistInv1o1) - PROJECT STATUS & ROADMAP
+================================================================================
+Date: 2026-09-26
+Repository: Szafvanzayne/DistInv1o1
+Live Deployment: https://szafvanzayne.github.io/DistInv1o1/
+
+--------------------------------------------------------------------------------
+1. TECH STACK OVERVIEW
+--------------------------------------------------------------------------------
+- Frontend: Vanilla HTML5, CSS3 (Custom responsive dark theme in style.css),
+  ES6+ JavaScript (app.js, db.js). Google Fonts (Outfit).
+- Cloud Database & Auth: Firebase Cloud Firestore (NoSQL) & Firebase Auth
+  (Email/Password).
+- Offline & Local Persistence: Firestore Multi-Tab IndexedDbPersistence
+  (automatic offline reads/writes with silent cloud sync when reconnected).
+- Client Libraries:
+  * html5-qrcode.min.js: Camera barcode & QR code scanner.
+  * jspdf.umd.min.js: Client-side PDF invoice generation, sharing, and printing.
+  * Chart.js (CDN): Dashboard sales trends, category charts, and performance.
+- Mobile PWA: service-worker.js (offline caching), manifest.json (Android APK
+  ready with maskable icons and theme colors).
+
+--------------------------------------------------------------------------------
+2. SUMMARY OF WHAT WAS DEVELOPED LAST (Phase 3 & v3.5.1)
+--------------------------------------------------------------------------------
+
+[A] Staff Role Management & Inline Role Editing
+- Added an "Edit" button next to each staff member in the Staff list
+  (Settings > Staff).
+- Enables Store Admins / Super Admins to promote or demote roles (e.g. changing
+  a Store Admin to Staff immediately revokes and hides the Reports and Staff tabs).
+- Resolved real-time listener issues ("missing user" glitch) so both active
+  users and pending invitations update instantly without needing a browser refresh.
+- Configured Super Admins to view a global list of all staff across all stores
+  when in master mode.
+
+[B] 100% Cross-Store Isolation & Security Hardening
+- Enforced strict storeId filtering across all database queries in db.js for:
+  * Products
+  * Invoices
+  * Customers
+  * Staff
+- Enforced role hierarchy: Store Managers cannot see or edit Super Admins or
+  other Store Managers (they only see their own store profile and their assigned staff).
+- Fixed store metadata persistence (Store Name, Address, Phone) when new managers
+  are directly created or assigned.
+- Hardened getStoreId logic in db.js to prevent "ghost" stores if user metadata
+  is incomplete.
+
+[C] Customer Management System (v3.5 & v3.5.1)
+- Full CRUD operations (Add, View, Edit, Delete customers) with fast search.
+- UI bug fixes: Resolved modal alignment, input spacing, and responsive layout
+  issues.
+- Integrated customer contact details with the billing screen, PDF generation,
+  and WhatsApp sharing pre-fill.
+
+[D] Business Intelligence & Sales Analytics
+- Reports dashboard powered by Chart.js.
+- Visual charts for Daily, Weekly, and Monthly sales trends.
+- Category breakdowns, top-selling products, and low-stock indicators.
+
+--------------------------------------------------------------------------------
+3. TEST CREDENTIALS & ACCESS REFERENCE
+--------------------------------------------------------------------------------
+- Super Admin:   app@rahmaniya.com | !!admin)) (or 123456)
+- Store Manager: run@rahmaniya.com | !!admin)) (or 123456)
+- Staff:         A@rahmaniya.com   | !!admin)) (or 123456)
+
+Note: For local development, run:
+  python3 -m http.server 8000
+and access via http://localhost:8000.
+If using GitHub Pages, ensure szafvanzayne.github.io is listed in Firebase
+Console > Authentication > Settings > Authorized domains.
+
+--------------------------------------------------------------------------------
+4. WHAT SHOULD PROGRESS NEXT (RECOMMENDED ROADMAP)
+--------------------------------------------------------------------------------
+
+Option 1: Customer Ledger & Due / Credit Management (Khata)
+- Track partial payments, outstanding balances, and credit accounts for customers.
+- One-click WhatsApp payment reminders with invoice links and outstanding amounts.
+- Customer transaction history ledger.
+
+Option 2: Supplier / Vendor & Purchase Management
+- Supplier / Vendor directory with contact details and terms.
+- Purchase Orders / Stock Inflow: Log incoming stock with cost prices,
+  automatically incrementing inventory stock levels.
+- Vendor payment tracking and purchase history.
+
+Option 3: Thermal Receipt Printer & POS Enhancements
+- ESC/POS Bluetooth / USB direct printing support for 58mm / 80mm thermal receipt
+  printers standard in retail checkout counters.
+- Built-in Barcode Label Generator: Generate and print barcode stickers for
+  items that do not come pre-barcoded.
+
+Option 4: Data Import/Export & Accounting Reports
+- Bulk Product Import: Upload catalog spreadsheets (CSV/Excel) instead of
+  manual single-item entry.
+- Tax & Sales Export: Download GSTR/sales summaries in Excel/CSV format for
+  accountant review and tax filing.
+- Expense tracking: Log store operational expenses (rent, electricity, salaries)
+  alongside revenue.
+
+Option 5: Multi-Store Stock Transfers
+- For Super Admins managing multiple store branches: transfer stock quantities
+  between a central warehouse/branch and retail branches with dispatch & receipt
+  confirmation.
+================================================================================

@@ -1,0 +1,124 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isSuperAdmin() {
+      return isAuthenticated() && getUserData().role == 'super_admin';
+    }
+
+    function isStoreAdmin(storeId) {
+      return isAuthenticated() && (
+        isSuperAdmin() || 
+        (getUserData().role == 'store_admin' && getUserData().storeId == storeId)
+      );
+    }
+
+    function belongsToStore(storeId) {
+      return isAuthenticated() && (
+        isSuperAdmin() || 
+        getUserData().storeId == storeId
+      );
+    }
+
+    // Users Collection
+    match /users/{userId} {
+      allow read: if isAuthenticated() && (
+        request.auth.uid == userId || 
+        isSuperAdmin() || 
+        (getUserData().role == 'store_admin' && resource.data.storeId == getUserData().storeId)
+      );
+      allow create: if isAuthenticated() && (
+        request.auth.uid == userId || isSuperAdmin() || getUserData().role == 'store_admin'
+      );
+      allow update: if isAuthenticated() && (
+        isSuperAdmin() ||
+        (getUserData().role == 'store_admin' && resource.data.storeId == getUserData().storeId && request.resource.data.role != 'super_admin') ||
+        (request.auth.uid == userId && request.resource.data.role == resource.data.role)
+      );
+      allow delete: if isAuthenticated() && (
+        isSuperAdmin() || 
+        (getUserData().role == 'store_admin' && resource.data.storeId == getUserData().storeId && resource.data.role == 'staff')
+      );
+    }
+
+    // Stores Collection
+    match /stores/{storeId} {
+      allow read: if belongsToStore(storeId);
+      allow write: if isStoreAdmin(storeId);
+    }
+
+    // Products Collection
+    match /products/{productId} {
+      allow read: if isAuthenticated() && (
+        isSuperAdmin() || 
+        resource.data.storeId == getUserData().storeId
+      );
+      allow create: if isAuthenticated() && (
+        isSuperAdmin() || 
+        request.resource.data.storeId == getUserData().storeId
+      );
+      allow update: if isAuthenticated() && (
+        isSuperAdmin() || 
+        (resource.data.storeId == getUserData().storeId && request.resource.data.storeId == getUserData().storeId)
+      );
+      allow delete: if isAuthenticated() && (
+        isSuperAdmin() || 
+        (getUserData().role == 'store_admin' && resource.data.storeId == getUserData().storeId)
+      );
+    }
+
+    // Invoices Collection
+    match /invoices/{invoiceId} {
+      allow read: if isAuthenticated() && (
+        isSuperAdmin() || 
+        resource.data.storeId == getUserData().storeId
+      );
+      allow create: if isAuthenticated() && (
+        isSuperAdmin() || 
+        request.resource.data.storeId == getUserData().storeId
+      );
+      allow update: if isAuthenticated() && (
+        isSuperAdmin() || 
+        (resource.data.storeId == getUserData().storeId && request.resource.data.storeId == getUserData().storeId)
+      );
+      allow delete: if isAuthenticated() && (
+        isSuperAdmin() || 
+        (getUserData().role == 'store_admin' && resource.data.storeId == getUserData().storeId)
+      );
+    }
+
+    // Customers Collection
+    match /customers/{customerId} {
+      allow read: if isAuthenticated() && (
+        isSuperAdmin() || 
+        resource.data.storeId == getUserData().storeId
+      );
+      allow create, update: if isAuthenticated() && (
+        isSuperAdmin() || 
+        request.resource.data.storeId == getUserData().storeId
+      );
+      allow delete: if isAuthenticated() && (
+        isSuperAdmin() || 
+        (getUserData().role == 'store_admin' && resource.data.storeId == getUserData().storeId)
+      );
+    }
+
+    // Staff Invites Collection
+    match /staff_invites/{inviteEmail} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && (
+        isSuperAdmin() || 
+        getUserData().role == 'store_admin'
+      );
+    }
+  }
+}

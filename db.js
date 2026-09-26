@@ -346,6 +346,10 @@ export const db = {
         }
     },
 
+    async restoreStock(barcode, qty) {
+        return this.deductStock(barcode, -qty);
+    },
+
     // --- Staff Management ---
 
     async addStaffInvite(email, role = 'staff', targetStoreId = null, storeDetails = null) {
@@ -360,6 +364,15 @@ export const db = {
             status: 'pending',
             createdAt: serverTimestamp(),
             storeDetails: storeDetails || null
+        });
+        return true;
+    },
+
+    async updateStaffInvite(email, data) {
+        const inviteRef = doc(firestore, "staff_invites", email.toLowerCase());
+        await updateDoc(inviteRef, {
+            ...data,
+            updatedAt: serverTimestamp()
         });
         return true;
     },

@@ -1,0 +1,191 @@
+================================================================================
+BIGSTORE PRO (DistInv1o1) - V1 AUDIT, CODE ERRORS & SECURITY REPORT
+================================================================================
+Date: 2026-09-26
+Repository: Szafvanzayne/DistInv1o1
+Scope: Comprehensive Code Audit for Errors, Business Logic, Security & Production
+
+--------------------------------------------------------------------------------
+1. CRITICAL RUNTIME ERRORS & BUGS
+--------------------------------------------------------------------------------
+
+[1.1] ReferenceError: loadInventory is not defined
+- Locations: app.js (Lines 2045 & 2060)
+- Root Cause: Called inside deleteProduct() and adjustStock() after database
+  updates. The function loadInventory() is never declared or imported anywhere
+  in the codebase.
+- Impact: Application crashes with an unhandled exception in the browser console
+  whenever an administrator adjusts stock or deletes an inventory item.
+- Recommended Fix: Remove the loadInventory() calls; the active real-time
+  listener db.listenToProducts() already synchronizes the inventory list
+  automatically.
+
+[1.2] Staff Account Creation Ejects Admin to Login Screen
+- Location: app.js (Line 935)
+- Root Cause: In handleDirectStaffCreate(), the function calls renderView('login')
+  immediately upon successfully creating a new staff account.
+- Impact: A logged-in Store Admin or Super Admin is abruptly thrown back to the
+  login page while their session is still active.
+- Recommended Fix: Replace renderView('login') with renderView('management')
+  or leave the user on their active dashboard.
+
+[1.3] Role Editing for Pending Staff Invites Fails
+- Location: app.js (Lines 815-826)
+- Root Cause: When an invite (status: 'pending') is edited, its ID is its email.
+  The code calls db.updateUserProfile(window.editingStaffUid, profileData), which
+  writes to the "users" collection instead of the "staff_invites" collection.
+- Impact: Updating the role of an invited staff member does not work and leaves
+  corrupted orphan records in the database.
+- Recommended Fix: Check the status of the item being edited; if status ===
+  'pending', update doc(firestore, 'staff_invites', email) instead of users/{uid}.
+
+[1.4] Service Worker Offline Cache Miss & Offline Failure
+- Locations: service-worker.js (Lines 2-13, 40), index.html (Lines 24, 70),
+  app.js (Line 12)
+- Root Cause:
+  1. service-worker.js caches exact paths: './app.js', './db.js', './style.css'.
+  2. The application loads them with query params: 'app.js?v=3.5.1',
+     'style.css?v=3.5.1', and './db.js?v=2.3'.
+  3. caches.match(event.request) performs strict URL matching without
+     { ignoreSearch: true }, resulting in cache misses when offline.
+  4. CDN assets (Chart.js, Firebase JS, Google Fonts) are not cached.
+  5. Missing self.skipWaiting() and clients.claim() prevent new service workers
+     from activating smoothly.
+- Impact: The application fails to launch or load when completely offline.
+- Recommended Fix: Add { ignoreSearch: true } to caches.match, include CDN
+  dependencies in precaching, and add self.skipWaiting().
+
+[1.5] PDF Invoice Overflow on Multi-Item Orders
+- Location: app.js (Lines 1879-1887)
+- Root Cause: getGeneratedPdfBlob() increments vertical offset (y += 8) for each
+  item without checking page height limits (A4 height is 297mm).
+- Impact: Invoices with more than 18-20 items write beyond the bottom edge of
+  the canvas, cutting off items and drawing invoice totals off-page.
+- Recommended Fix: Implement multi-page pagination checks (doc.addPage()) or
+  integrate jspdf-autotable.
+
+--------------------------------------------------------------------------------
+2. LOGIC & BUSINESS ACCOUNTING FLAWS
+--------------------------------------------------------------------------------
+
+[2.1] Inventory Double-Deduction on Edit & Stock Lost on Delete
+- Locations: app.js (Lines 1800-1802, 2125-2134)
+- Root Cause:
+  1. Invoice creation subtracts stock via db.deductStock().
+  2. deleteInvoice() deletes the invoice document from Firestore but NEVER
+     restores the deducted quantities back to product stock.
+  3. editInvoice() loads the invoice back into the cart. When saved again,
+     generateInvoice() deducts stock a second time for the exact same items.
+- Impact: Severe stock count drift, false out-of-stock indicators, and corrupted
+  inventory history.
+- Recommended Fix: On deleteInvoice, increment stock back for each item. On
+  invoice edit, calculate the quantity delta or restore previous quantities
+  before applying new deductions.
+
+[2.2] GST Tax Calculation Formula Mismatch
+- Location: app.js (Lines 1759-1766)
+- Root Cause:
+  The calculation mixes tax-inclusive and tax-exclusive formulas:
+    itemTotal = price * item.qty
+    gstAmountPerUnit = (price * slab) / 100
+    totalAmount += itemTotal
+    totalTaxable += (itemTotal - itemTax)
+  If an item price is Rs 100 with 18% GST:
+    Calculated tax = Rs 18, Taxable = Rs 82, Grand Total = Rs 100.
+    18% of Rs 82 is Rs 14.76, NOT Rs 18 (an 18 tax on 82 is ~21.95%).
+- Impact: The generated invoices and tax summaries are mathematically invalid and
+  will be rejected under statutory GST and commercial tax audits.
+- Recommended Fix: Standardize prices as either Tax-Inclusive or Tax-Exclusive:
+  * Inclusive: Taxable = Total / (1 + Rate / 100), GST = Total - Taxable
+  * Exclusive: Taxable = Price * Qty, GST = Taxable * (Rate / 100),
+    Grand Total = Taxable + GST
+
+[2.3] Hourly Sales Chart Omission of Peak Operating Hours
+- Location: app.js (Lines 1099-1102)
+- Root Cause: renderReportsDashboard() collects 24 hourly buckets, but the chart
+  dataset explicitly renders only hours [0, 4, 8, 12, 16, 20, 23].
+- Impact: Sales generated at peak business hours (e.g., 10 AM, 2 PM, 3 PM, 7 PM)
+  are completely omitted from the graph, showing flat lines during busy periods.
+- Recommended Fix: Provide all active store hours (e.g. 8 AM to 10 PM) or group
+  data into continuous time intervals.
+
+[2.4] Un-debounced Database Queries & Unbounded History Reads
+- Locations: app.js (Lines 962, 1536, 1605)
+- Root Cause:
+  1. loadDashboardStats() fetches all historical invoices ever created by the
+     store just to compute today's sales count.
+  2. handleSearchInput() and handleCustomerSearchInput() query Firestore on every
+     keystroke with no debounce delay.
+- Impact: Excessive document reads, high Firebase bills, and UI stutter.
+- Recommended Fix: Add a 300ms debounce to search fields; query invoices with a
+  date filter (where("date", ">=", startOfDay)) or maintain daily summary docs.
+
+--------------------------------------------------------------------------------
+3. SECURITY VULNERABILITIES & DATA ISOLATION
+--------------------------------------------------------------------------------
+
+[3.1] Client-Side-Only Authorization (No Firestore Security Rules)
+- Location: Architecture / db.js
+- Root Cause: Multi-tenancy and role checks (isAdmin(), isSuperAdmin(),
+  where("storeId", "==", storeId)) are implemented entirely in frontend JS.
+  No firestore.rules exist in the project.
+- Impact: Any user can open the browser console and:
+  1. Elevate their own role to 'super_admin' in users/{uid}.
+  2. Read, modify, or delete any competitor's invoices, products, or customers.
+- Recommended Fix: Deploy server-side Firestore Security Rules enforcing that
+  read/write permissions check request.auth.uid and storeId.
+
+[3.2] Stored DOM Cross-Site Scripting (XSS)
+- Locations: app.js (Lines 1230-1287, 1405, 1620, 2117)
+- Root Cause: User-controlled inputs (Customer Name, Product Name, SKU Barcode)
+  are interpolated directly into innerHTML and onclick="..." attributes without
+  HTML entity escaping.
+- Impact: An attacker can input a customer name or barcode containing script
+  tags or quote escapes to execute arbitrary JavaScript in the admin session.
+- Recommended Fix: Implement an escapeHTML() helper for all dynamic string
+  interpolations in the DOM.
+
+[3.3] In-Browser Account Creation via Secondary Firebase App Instance
+- Location: app.js (Lines 885-895)
+- Root Cause: Creating staff accounts spins up a secondary Firebase App instance
+  in client memory to avoid logging out the admin.
+- Impact: Passwords are typed directly by the manager with no self-service setup;
+  network failure midway creates orphan Auth users without database profiles.
+- Recommended Fix: Use a Firebase Cloud Function with Firebase Admin SDK or
+  send automated password-setup invitation emails.
+
+--------------------------------------------------------------------------------
+4. PRODUCTION READINESS ROADMAP (V1 TO COMMERCIAL GRADE)
+--------------------------------------------------------------------------------
+
+Phase A: Immediate Stability & Bug Fixes (V1.1)
+- [ ] Fix loadInventory ReferenceError in app.js.
+- [ ] Remove renderView('login') redirect upon staff account creation.
+- [ ] Fix role editing for pending invites in staff_invites collection.
+- [ ] Fix Service Worker cache lookup ({ ignoreSearch: true }) and add skipWaiting().
+- [ ] Fix inventory stock restoration on deleteInvoice() and editInvoice().
+- [ ] Correct GST tax-inclusive / tax-exclusive calculation formulas.
+- [ ] Fix hourly reports chart to display all store operating hours.
+- [ ] Escape HTML in all dynamic DOM rendering to prevent XSS.
+
+Phase B: Cloud Security & Architecture (V1.2)
+- [ ] Write and deploy production-grade firestore.rules.
+- [ ] Migrate staff provisioning to Firebase Cloud Functions (Admin SDK).
+- [ ] Implement daily aggregated sales documents (daily_sales/{date}) for
+      instant, low-cost dashboard loading.
+- [ ] Add 300ms debounce to customer and product search inputs.
+
+Phase C: Commercial POS & Hardware Features (V1.3)
+- [ ] Sequential, non-resettable invoice numbering (e.g., INV-2026-0001) for
+      legal tax compliance.
+- [ ] Web Bluetooth / USB ESC/POS thermal receipt printing (58mm/80mm rolls).
+- [ ] In-app Barcode Label Generator for un-barcoded goods.
+- [ ] Multi-page PDF table pagination using jspdf-autotable.
+- [ ] Bulk product catalog import/export (CSV/Excel).
+- [ ] Customer ledger (Khata / credit and due tracking).
+
+Phase D: Automated Testing & Continuous Integration (V1.4)
+- [ ] Unit tests for billing calculations, tax slabs, and price tier overrides.
+- [ ] End-to-end tests (Playwright) covering authentication, stock deduction,
+      and role permission boundaries.
+================================================================================

@@ -9,7 +9,7 @@
  * 4. Data Persistence (calls to db.js to save to IndexedDB)
  */
 
-import { db, auth, firestore, firebaseConfig } from './db.js?v=2.3';
+import { db, auth, firestore, firebaseConfig } from './db.js?v=3.5.2';
 import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-auth.js";
 import { collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
@@ -26,9 +26,29 @@ window.currentState = {
     unsubCustomers: null,
     editingInvoiceId: null,
     editingInvoiceDate: null,
+    originalInvoiceItems: null,
     selectedCustomer: null,
     priceType: 'retail'
 };
+
+window.escapeHTML = (str) => {
+    if (str === null || str === undefined) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+};
+
+function debounce(func, wait = 300) {
+    let timeout;
+    return function(...args) {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func.apply(this, args), wait);
+    };
+}
+
 
 // --- Initialization ---
 // This runs when the page first loads. It checks for dependencies and starts the DB.
@@ -822,9 +842,15 @@ window.handleDirectStaffCreate = async (e) => {
                 storeId: document.getElementById('staff-store-id')?.value || db.getStoreId()
             };
 
-            await db.updateUserProfile(window.editingStaffUid, profileData);
+            if (window.editingStaffStatus === 'pending') {
+                await db.updateStaffInvite(window.editingStaffUid, profileData);
+            } else {
+                await db.updateUserProfile(window.editingStaffUid, profileData);
+            }
 
             alert("Staff role updated successfully!");
+            window.editingStaffUid = null;
+            window.editingStaffStatus = null;
             document.getElementById('staff-modal').style.display = 'none';
         } catch (err) {
             alert("Failed to update: " + err.message);
@@ -932,7 +958,9 @@ window.handleDirectStaffCreate = async (e) => {
         }
 
         document.getElementById('staff-modal').style.display = 'none';
-        renderView('login');
+        if (window.currentState.view !== 'management') {
+            renderView(window.currentState.view || 'home');
+        }
 
     } catch (err) {
         alert("Failed: " + err.message);
@@ -1000,7 +1028,11 @@ window.calculateGST = () => {
     const price = parseFloat(document.getElementById('p-retail').value) || 0;
     const slab = parseFloat(document.getElementById('p-slab').value) || 0;
 
-    const gstAmt = (price * slab) / 100;
+    let gstAmt = 0;
+    if (slab > 0) {
+        const taxable = price / (1 + (slab / 100));
+        gstAmt = price - taxable;
+    }
     const half = gstAmt / 2;
 
     document.getElementById('p-gst').value = gstAmt.toFixed(2);
@@ -1067,14 +1099,14 @@ window.renderReportsDashboard = (invoices) => {
         } else {
             topListEl.innerHTML = topProducts.map((p, i) => `
                 <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: ${i < topProducts.length - 1 ? '1px solid #f1f5f9' : 'none'};">
-                    <span style="font-size: 14px;">${p.name}</span>
+                    <span style="font-size: 14px;">${escapeHTML(p.name)}</span>
                     <span style="font-weight: 600; color: #1e3a8a;">${p.qty} sold</span>
                 </div>
             `).join('');
         }
     }
 
-    // Hourly Sales for Chart
+    // Hourly Sales for Chart (Store operating hours: 8 AM to 10 PM)
     const hourlySales = Array(24).fill(0);
     todayInvoices.forEach(inv => {
         const hour = new Date(inv.date).getHours();
@@ -1092,14 +1124,29 @@ window.renderSalesChart = (hourlyData) => {
     // Destroy existing chart to avoid layout overlap
     if (salesChartInstance) salesChartInstance.destroy();
 
+    // 2-hour interval bins covering active hours without skipping peak times
+    const intervals = [
+        { label: '8 AM', hours: [8, 9] },
+        { label: '10 AM', hours: [10, 11] },
+        { label: '12 PM', hours: [12, 13] },
+        { label: '2 PM', hours: [14, 15] },
+        { label: '4 PM', hours: [16, 17] },
+        { label: '6 PM', hours: [18, 19] },
+        { label: '8 PM', hours: [20, 21] },
+        { label: '10 PM', hours: [22, 23] }
+    ];
+
+    const labels = intervals.map(i => i.label);
+    const data = intervals.map(i => i.hours.reduce((sum, h) => sum + (hourlyData[h] || 0), 0));
+
     const ctx = canvas.getContext('2d');
     salesChartInstance = new Chart(ctx, {
         type: 'line',
         data: {
-            labels: ['12am', '4am', '8am', '12pm', '4pm', '8pm', '11pm'],
+            labels: labels,
             datasets: [{
                 label: 'Sales (₹)',
-                data: [hourlyData[0], hourlyData[4], hourlyData[8], hourlyData[12], hourlyData[16], hourlyData[20], hourlyData[23]],
+                data: data,
                 borderColor: '#1e3a8a',
                 backgroundColor: 'rgba(30, 58, 138, 0.1)',
                 fill: true,
@@ -1111,7 +1158,14 @@ window.renderSalesChart = (hourlyData) => {
         },
         options: {
             responsive: true,
-            plugins: { legend: { display: false } },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: (context) => ` Sales: ₹${Number(context.raw || 0).toFixed(2)}`
+                    }
+                }
+            },
             scales: {
                 y: { beginAtZero: true, grid: { display: false } },
                 x: { grid: { display: false } }
@@ -1227,20 +1281,29 @@ window.renderStaffList = (staff) => {
         return;
     }
 
-    list.innerHTML = staff.map(person => `
-        <div class="card" style="padding: 15px; display: flex; align-items: center; justify-content: space-between; gap: 15px; margin-bottom: 10px; border-left: 4px solid ${person.status === 'pending' ? '#f59e0b' : '#10b981'};">
+    list.innerHTML = staff.map(person => {
+        const safeUid = escapeHTML(person.uid);
+        const safeEmail = escapeHTML(person.email || 'Staff Member');
+        const rawEmail = String(person.email || '').replace(/'/g, "\\'");
+        const rawRole = String(person.role || 'staff').replace(/'/g, "\\'");
+        const rawStatus = String(person.status || 'active').replace(/'/g, "\\'");
+        const roleLabel = person.role === 'store_admin' ? 'Store Admin' : person.role === 'super_admin' ? 'Super Admin' : 'Staff';
+        const isPending = person.status === 'pending';
+
+        return `
+        <div class="card" style="padding: 15px; display: flex; align-items: center; justify-content: space-between; gap: 15px; margin-bottom: 10px; border-left: 4px solid ${isPending ? '#f59e0b' : '#10b981'};">
             <div style="display: flex; align-items: center; gap: 15px;">
                 <div style="width: 40px; height: 40px; background: #eef2f6; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
-                    <span class="material-icons-round" style="color: #1e3a8a;">${person.status === 'pending' ? 'mail_outline' : 'person'}</span>
+                    <span class="material-icons-round" style="color: #1e3a8a;">${isPending ? 'mail_outline' : 'person'}</span>
                 </div>
                 <div>
-                    <h4 style="margin: 0; font-size: 14px;">${person.email || 'Staff Member'}</h4>
+                    <h4 style="margin: 0; font-size: 14px;">${safeEmail}</h4>
                     <div style="display: flex; align-items: center; gap: 8px; margin-top: 2px;">
                         <span style="font-size: 10px; color: #6b7280; text-transform: uppercase; font-weight: 600;">
-                            ${person.role === 'store_admin' ? 'Store Admin' : person.role === 'super_admin' ? 'Super Admin' : 'Staff'}
+                            ${roleLabel}
                         </span>
-                        <span style="font-size: 9px; padding: 2px 6px; border-radius: 10px; background: ${person.status === 'pending' ? '#fef3c7' : '#dcfce7'}; color: ${person.status === 'pending' ? '#92400e' : '#166534'}; text-transform: uppercase; font-weight: 700;">
-                            ${person.status}
+                        <span style="font-size: 9px; padding: 2px 6px; border-radius: 10px; background: ${isPending ? '#fef3c7' : '#dcfce7'}; color: ${isPending ? '#92400e' : '#166534'}; text-transform: uppercase; font-weight: 700;">
+                            ${escapeHTML(person.status)}
                         </span>
                     </div>
                 </div>
@@ -1257,10 +1320,10 @@ window.renderStaffList = (staff) => {
             if (isSuper) {
                 return `
                         <div style="display: flex; gap: 10px;">
-                            <button onclick="showEditStaffModal('${person.uid}', '${person.email}', '${person.role}', '${person.status}')" style="background:none; border:none; color: #1e3a8a; padding: 5px;">
+                            <button onclick="showEditStaffModal('${safeUid}', '${rawEmail}', '${rawRole}', '${rawStatus}')" style="background:none; border:none; color: #1e3a8a; padding: 5px;">
                                 <span class="material-icons-round" style="font-size: 20px;">edit</span>
                             </button>
-                            <button onclick="confirmDeleteStaff('${person.uid}', ${person.status === 'pending'})" style="background:none; border:none; color: #ef4444; padding: 5px;">
+                            <button onclick="confirmDeleteStaff('${safeUid}', ${isPending})" style="background:none; border:none; color: #ef4444; padding: 5px;">
                                 <span class="material-icons-round" style="font-size: 20px;">delete_outline</span>
                             </button>
                         </div>
@@ -1271,10 +1334,10 @@ window.renderStaffList = (staff) => {
             if (isAdmin && person.role === 'staff') {
                 return `
                         <div style="display: flex; gap: 10px;">
-                            <button onclick="showEditStaffModal('${person.uid}', '${person.email}', '${person.role}', '${person.status}')" style="background:none; border:none; color: #1e3a8a; padding: 5px;">
+                            <button onclick="showEditStaffModal('${safeUid}', '${rawEmail}', '${rawRole}', '${rawStatus}')" style="background:none; border:none; color: #1e3a8a; padding: 5px;">
                                 <span class="material-icons-round" style="font-size: 20px;">edit</span>
                             </button>
-                            <button onclick="confirmDeleteStaff('${person.uid}', ${person.status === 'pending'})" style="background:none; border:none; color: #ef4444; padding: 5px;">
+                            <button onclick="confirmDeleteStaff('${safeUid}', ${isPending})" style="background:none; border:none; color: #ef4444; padding: 5px;">
                                 <span class="material-icons-round" style="font-size: 20px;">delete_outline</span>
                             </button>
                         </div>
@@ -1284,7 +1347,8 @@ window.renderStaffList = (staff) => {
             return ''; // No management allowed
         })()}
         </div>
-    `).join('');
+    `;
+    }).join('');
 };
 
 window.showEditStaffModal = (uid, email, role, status) => {
@@ -1304,8 +1368,9 @@ window.showEditStaffModal = (uid, email, role, status) => {
     const submitBtn = document.querySelector('#staff-creation-form button[type="submit"]');
     submitBtn.innerText = 'Update Account';
 
-    // Store UID for the update handler
+    // Store UID and status for the update handler
     window.editingStaffUid = uid;
+    window.editingStaffStatus = status;
 
     toggleStaffFields(role);
 };
@@ -1395,27 +1460,34 @@ window.renderCustomerList = (customers) => {
         return;
     }
 
-    list.innerHTML = customers.map(c => `
+    list.innerHTML = customers.map(c => {
+        const safeId = escapeHTML(c.id);
+        const safeName = escapeHTML(c.name);
+        const safePhone = escapeHTML(c.phone);
+        const safePriceType = escapeHTML(c.priceType || 'retail');
+
+        return `
         <div class="card" style="padding: 15px; margin-bottom: 12px;">
             <div style="display: flex; align-items: center; gap: 15px;">
                 <div style="width: 40px; height: 40px; border-radius: 50%; background: #f0fdf4; display: flex; align-items: center; justify-content: center; color: #15803d;">
                     <span class="material-icons-round">person</span>
                 </div>
                 <div style="flex: 1;">
-                    <div style="font-weight: 700; color: #1e3a8a;">${c.name}</div>
-                    <div style="font-size: 13px; color: #6b7280;">${c.phone} | <span style="text-transform: capitalize; color: #15803d; font-weight: 600;">${c.priceType} Price</span></div>
+                    <div style="font-weight: 700; color: #1e3a8a;">${safeName}</div>
+                    <div style="font-size: 13px; color: #6b7280;">${safePhone} | <span style="text-transform: capitalize; color: #15803d; font-weight: 600;">${safePriceType} Price</span></div>
                 </div>
                 <div style="display: flex; gap: 10px;">
-                    <button onclick="showAddCustomerModal('${c.id}')" style="background:none; border:none; padding:5px; color:#1e3a8a;">
+                    <button onclick="showAddCustomerModal('${safeId}')" style="background:none; border:none; padding:5px; color:#1e3a8a;">
                         <span class="material-icons-round" style="font-size: 20px;">edit</span>
                     </button>
-                    <button onclick="confirmDeleteCustomer('${c.id}')" style="background:none; border:none; padding:5px; color:#ef4444;">
+                    <button onclick="confirmDeleteCustomer('${safeId}')" style="background:none; border:none; padding:5px; color:#ef4444;">
                         <span class="material-icons-round" style="font-size: 20px;">delete_outline</span>
                     </button>
                 </div>
             </div>
         </div>
-    `).join('');
+    `;
+    }).join('');
 };
 
 window.confirmDeleteCustomer = (id) => {
@@ -1520,43 +1592,63 @@ window.renderCart = () => {
 
 // --- Search Logic ---
 // --- Customer Search Logic (For Invoice) ---
-window.handleCustomerSearchInput = async (val) => {
+let customerSearchCache = null;
+let customerSearchCacheTime = 0;
+
+window.handleCustomerSearchInput = debounce(async (val) => {
     const resultsPanel = document.getElementById('cust-search-results');
-    if (!val || val.length < 2) {
+    if (!resultsPanel) return;
+
+    if (!val || val.trim().length < 2) {
         resultsPanel.style.display = 'none';
         return;
     }
 
-    // Since we don't have a specific global search method, we'll fetch others via db and filter local
-    // In a large db, we'd use a Firestore query. For now, we'll use onSnapshot cached data if available
-    // or fetch all (not suggested for large DBs, but okay for MVP)
-
-    // Better: We'll use a direct query for simple name prefix
-    const storeId = db.getStoreId();
-    const q = query(collection(firestore, "customers"), where("storeId", "==", storeId));
-    const snap = await getDocs(q);
-
-    const matches = [];
-    snap.forEach(doc => {
-        const data = doc.data();
-        if (data.name.toLowerCase().includes(val.toLowerCase()) || data.phone.includes(val)) {
-            matches.push({ id: doc.id.replace(`${storeId}_`, ''), ...data });
+    try {
+        const storeId = db.getStoreId();
+        const now = Date.now();
+        if (!customerSearchCache || (now - customerSearchCacheTime > 10000)) {
+            const q = query(collection(firestore, "customers"), where("storeId", "==", storeId));
+            const snap = await getDocs(q);
+            customerSearchCache = [];
+            snap.forEach(doc => {
+                customerSearchCache.push({ id: doc.id.replace(`${storeId}_`, ''), ...doc.data() });
+            });
+            customerSearchCacheTime = now;
         }
-    });
 
-    if (matches.length === 0) {
-        resultsPanel.innerHTML = '<div style="padding: 10px; font-size:12px; color:#6b7280;">No customer found.</div>';
-    } else {
-        resultsPanel.innerHTML = matches.map(c => `
-            <div onclick="selectCustomer('${c.id}', '${c.name.replace(/'/g, "\\'")}', '${c.phone}', '${c.priceType || 'retail'}')" 
-                 style="padding: 10px; border-bottom: 1px solid #f3f4f6; cursor: pointer;">
-                <div style="font-weight: 600; color: #1e3a8a; font-size:13px;">${c.name}</div>
-                <div style="font-size: 11px; color: #6b7280;">${c.phone} | ${c.priceType || 'retail'} tier</div>
-            </div>
-        `).join('');
+        const queryStr = val.trim().toLowerCase();
+        const matches = customerSearchCache.filter(c =>
+            (c.name && c.name.toLowerCase().includes(queryStr)) ||
+            (c.phone && c.phone.includes(queryStr))
+        );
+
+        if (matches.length === 0) {
+            resultsPanel.innerHTML = '<div style="padding: 10px; font-size:12px; color:#6b7280;">No customer found.</div>';
+        } else {
+            resultsPanel.innerHTML = matches.slice(0, 8).map(c => {
+                const safeId = escapeHTML(c.id);
+                const safeName = escapeHTML(c.name);
+                const safePhone = escapeHTML(c.phone);
+                const safeTier = escapeHTML(c.priceType || 'retail');
+                const rawName = String(c.name || '').replace(/'/g, "\\'");
+                const rawPhone = String(c.phone || '').replace(/'/g, "\\'");
+                const rawTier = String(c.priceType || 'retail').replace(/'/g, "\\'");
+
+                return `
+                <div onclick="selectCustomer('${safeId}', '${rawName}', '${rawPhone}', '${rawTier}')" 
+                     style="padding: 10px; border-bottom: 1px solid #f3f4f6; cursor: pointer;">
+                    <div style="font-weight: 600; color: #1e3a8a; font-size:13px;">${safeName}</div>
+                    <div style="font-size: 11px; color: #6b7280;">${safePhone} | ${safeTier} tier</div>
+                </div>
+                `;
+            }).join('');
+        }
+        resultsPanel.style.display = 'block';
+    } catch (err) {
+        console.error("Error in customer search:", err);
     }
-    resultsPanel.style.display = 'block';
-};
+}, 250);
 
 window.selectCustomer = (id, name, phone, priceType) => {
     window.currentState.selectedCustomer = { id, name, phone, priceType };
@@ -1594,40 +1686,58 @@ window.clearSelectedCustomer = () => {
     renderCart();
 };
 
-window.handleSearchInput = async (val) => {
+let productSearchCache = null;
+let productSearchCacheTime = 0;
+
+window.handleSearchInput = debounce(async (val) => {
     const resultsDiv = document.getElementById('search-results');
-    if (!val || val.length < 2) {
+    if (!resultsDiv) return;
+
+    if (!val || val.trim().length < 2) {
         resultsDiv.style.display = 'none';
         return;
     }
 
-    // Basic search
-    const all = await db.getAllProducts();
-    const hits = all.filter(p =>
-        p.name.toLowerCase().includes(val.toLowerCase()) ||
-        p.barcode.includes(val)
-    );
+    try {
+        const now = Date.now();
+        if (!productSearchCache || (now - productSearchCacheTime > 10000)) {
+            productSearchCache = await db.getAllProducts();
+            productSearchCacheTime = now;
+        }
 
-    if (hits.length > 0) {
-        resultsDiv.style.display = 'block';
-        resultsDiv.innerHTML = hits.map(p => {
-            const priceField = currentState.priceType === 'wholesale' ? 'wholesalePrice' :
-                currentState.priceType === 'card' ? 'cardPrice' : 'retailPrice';
-            const price = (p[priceField] !== undefined && p[priceField] !== null && p[priceField] !== 0)
-                ? p[priceField] : p.retailPrice;
+        const queryStr = val.trim().toLowerCase();
+        const hits = productSearchCache.filter(p =>
+            (p.name && p.name.toLowerCase().includes(queryStr)) ||
+            (p.barcode && p.barcode.includes(queryStr))
+        );
 
-            return `
-                <div onclick="addToCart('${p.barcode}'); document.getElementById('search-results').style.display='none'; document.getElementById('product-search').value='';" 
-                    style="padding: 10px; border-bottom: 1px solid #eee; cursor: pointer;">
-                    <div style="font-weight: 600;">${p.name}</div>
-                    <div style="font-size: 12px; color: #666;">SKU: ${p.barcode} | ₹${price}</div>
-                </div>
-            `;
-        }).join('');
-    } else {
-        resultsDiv.style.display = 'none';
+        if (hits.length > 0) {
+            resultsDiv.style.display = 'block';
+            resultsDiv.innerHTML = hits.slice(0, 10).map(p => {
+                const priceField = currentState.priceType === 'wholesale' ? 'wholesalePrice' :
+                    currentState.priceType === 'card' ? 'cardPrice' : 'retailPrice';
+                const price = (p[priceField] !== undefined && p[priceField] !== null && p[priceField] !== 0)
+                    ? p[priceField] : p.retailPrice;
+
+                const safeBarcode = escapeHTML(p.barcode);
+                const safeName = escapeHTML(p.name);
+                const rawBarcode = String(p.barcode || '').replace(/'/g, "\\'");
+
+                return `
+                    <div onclick="addToCart('${rawBarcode}'); document.getElementById('search-results').style.display='none'; document.getElementById('product-search').value='';" 
+                        style="padding: 10px; border-bottom: 1px solid #eee; cursor: pointer;">
+                        <div style="font-weight: 600;">${safeName}</div>
+                        <div style="font-size: 12px; color: #666;">SKU: ${safeBarcode} | ₹${price}</div>
+                    </div>
+                `;
+            }).join('');
+        } else {
+            resultsDiv.style.display = 'none';
+        }
+    } catch (err) {
+        console.error("Error in product search:", err);
     }
-};
+}, 250);
 
 // --- Scanner Integration ---
 // Uses the 'html5-qrcode' library to read barcodes from the camera.
@@ -1745,7 +1855,7 @@ window.generateInvoice = async () => {
         return;
     }
 
-    // 1. Calculate
+    // 1. Calculate Tax & Totals (Compliant Tax-Inclusive Retail Formula)
     let totalTaxable = 0;
     let totalGST = 0;
     let totalAmount = 0;
@@ -1757,19 +1867,29 @@ window.generateInvoice = async () => {
             ? item[priceField] : item.retailPrice;
 
         const slab = parseFloat(item.gstSlab) || 0;
-        const gstAmountPerUnit = (price * slab) / 100;
         const itemTotal = price * item.qty;
 
+        let itemTaxable = itemTotal;
+        let itemTax = 0;
+        let gstAmountPerUnit = 0;
+
+        if (slab > 0) {
+            itemTaxable = itemTotal / (1 + (slab / 100));
+            itemTax = itemTotal - itemTaxable;
+            gstAmountPerUnit = itemTax / item.qty;
+        }
+
         totalAmount += itemTotal;
-        const itemTax = gstAmountPerUnit * item.qty;
         totalGST += itemTax;
-        totalTaxable += (itemTotal - itemTax);
+        totalTaxable += itemTaxable;
 
         return {
             ...item,
             wholesalePrice: item.wholesalePrice || 0,
             cardPrice: item.cardPrice || 0,
             priceUsed: price,
+            itemTotal: itemTotal,
+            taxableAmount: itemTaxable,
             gstAmount: gstAmountPerUnit, // Calculated for the price used
             cgst: gstAmountPerUnit / 2,
             sgst: gstAmountPerUnit / 2
@@ -1793,19 +1913,30 @@ window.generateInvoice = async () => {
         totalTaxable: totalTaxable
     };
 
-    // 3. Save Invoice
-    await db.createInvoice(invoice);
-
-    // 4. Deduct Stock for each item
-    for (const item of currentState.cart) {
-        db.deductStock(item.barcode, item.qty);
+    // 3. If editing existing invoice, restore original items' stock before applying new deduction
+    if (currentState.editingInvoiceId && currentState.originalInvoiceItems) {
+        for (const origItem of currentState.originalInvoiceItems) {
+            if (origItem.barcode && origItem.qty) {
+                await db.restoreStock(origItem.barcode, origItem.qty);
+            }
+        }
+        currentState.originalInvoiceItems = null;
     }
 
-    // 5. Set State & Clear Cart 
+    // 4. Save Invoice
+    await db.createInvoice(invoice);
+
+    // 5. Deduct Stock for current items
+    for (const item of currentState.cart) {
+        await db.deductStock(item.barcode, item.qty);
+    }
+
+    // 6. Set State & Clear Cart 
     currentState.currentInvoice = invoice;
     currentState.cart = [];
     currentState.editingInvoiceId = null;
     currentState.editingInvoiceDate = null;
+    currentState.originalInvoiceItems = null;
     currentState.selectedCustomer = null;
     currentState.priceType = 'retail';
 
@@ -1877,6 +2008,21 @@ async function getGeneratedPdfBlob() {
     y += 10;
 
     invoice.items.forEach(item => {
+        // Multi-page pagination check
+        if (y > 265) {
+            doc.addPage();
+            y = 20;
+            doc.setFillColor(240, 240, 240);
+            doc.rect(10, y - 5, 190, 8, 'F');
+            doc.setFont(undefined, 'bold');
+            doc.text("Item", 14, y);
+            doc.text("Qty", 100, y);
+            doc.text("Price", 130, y);
+            doc.text("Total", 170, y);
+            doc.setFont(undefined, 'normal');
+            y += 10;
+        }
+
         const price = item.priceUsed || item.retailPrice;
         const itemTotal = (price * item.qty).toFixed(2);
         doc.text(item.name.substring(0, 30), 14, y);
@@ -1885,6 +2031,11 @@ async function getGeneratedPdfBlob() {
         doc.text(String(itemTotal), 170, y);
         y += 8;
     });
+
+    if (y > 250) {
+        doc.addPage();
+        y = 20;
+    }
 
     doc.line(10, y, 200, y);
     y += 10;
@@ -2042,7 +2193,6 @@ window.handleSaveProduct = async (e) => {
 window.deleteProduct = async (barcode) => {
     if (confirm('Delete this product?')) {
         await db.deleteProduct(barcode);
-        loadInventory();
     }
 };
 
@@ -2057,7 +2207,6 @@ window.adjustStock = async (barcode, currentStock) => {
         if (product) {
             product.stock = newStock;
             await db.addProduct(product);
-            loadInventory();
         }
     }
 };
@@ -2071,22 +2220,28 @@ window.renderInventoryList = (products) => {
         return;
     }
 
-    list.innerHTML = products.map(p => `
+    list.innerHTML = products.map(p => {
+        const safeName = escapeHTML(p.name);
+        const safeBarcode = escapeHTML(p.barcode);
+        const rawBarcode = String(p.barcode || '').replace(/'/g, "\\'");
+
+        return `
         <div class="card" style="display: flex; justify-content: space-between; align-items: center; padding: 15px;">
             <div>
-                <h3 style="color: var(--text-main); font-weight: 600; margin-bottom: 4px;">${p.name}</h3>
-                <div style="font-size: 12px; color: var(--text-secondary);">SKU: ${p.barcode}</div>
+                <h3 style="color: var(--text-main); font-weight: 600; margin-bottom: 4px;">${safeName}</h3>
+                <div style="font-size: 12px; color: var(--text-secondary);">SKU: ${safeBarcode}</div>
                 <div style="font-size: 12px; color: var(--text-secondary);">Stock: <strong>${p.stock}</strong> | Cost: ₹${p.costPrice || 0}</div>
             </div>
             <div style="text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 5px;">
                 <div style="color: #1e3a8a; font-weight: 700;">₹${p.retailPrice}</div>
                 <div style="display: flex; gap: 8px;">
-                    <button onclick="adjustStock('${p.barcode}', ${p.stock})" style="background: #eef2f6; border: none; padding: 4px 8px; border-radius: 4px; font-size: 11px; color: #1e3a8a;">Adjust</button>
-                    <button onclick="deleteProduct('${p.barcode}')" style="background: none; border: none; color: #ef4444; font-size: 11px;">DELETE</button>
+                    <button onclick="adjustStock('${rawBarcode}', ${p.stock})" style="background: #eef2f6; border: none; padding: 4px 8px; border-radius: 4px; font-size: 11px; color: #1e3a8a;">Adjust</button>
+                    <button onclick="deleteProduct('${rawBarcode}')" style="background: none; border: none; color: #ef4444; font-size: 11px;">DELETE</button>
                 </div>
             </div>
         </div>
-    `).join('');
+    `;
+    }).join('');
 };
 
 window.renderInvoiceList = (invoices) => {
@@ -2100,33 +2255,47 @@ window.renderInvoiceList = (invoices) => {
         return;
     }
 
-    list.innerHTML = invoices.map(inv => `
+    list.innerHTML = invoices.map(inv => {
+        const safeCust = escapeHTML(inv.customerName || 'Walk-in Customer');
+        const safeId = escapeHTML(inv.id);
+        const rawId = String(inv.id || '').replace(/'/g, "\\'");
+
+        return `
         <div class="card" style="padding: 15px; margin-bottom: 15px;">
             <div style="display: flex; justify-content: space-between; align-items: start;">
                  <div>
-                    <h3 style="color: #1e3a8a; font-weight: 700;">₹${inv.totalAmount.toFixed(2)}</h3>
-                    <div style="font-size: 14px; font-weight: 500; margin-top: 4px;">${inv.customerName}</div>
+                    <h3 style="color: #1e3a8a; font-weight: 700;">₹${Number(inv.totalAmount || 0).toFixed(2)}</h3>
+                    <div style="font-size: 14px; font-weight: 500; margin-top: 4px;">${safeCust}</div>
                     <div style="font-size: 12px; color: var(--text-secondary); margin-top: 2px;">
                         ${new Date(inv.date).toLocaleDateString()}
                     </div>
                  </div>
                  <div style="text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 8px;">
-                    <span style="font-size: 10px; background: #eef2f6; padding: 4px 8px; border-radius: 4px; color: #666;">#${inv.id.slice(-6)}</span>
+                    <span style="font-size: 10px; background: #eef2f6; padding: 4px 8px; border-radius: 4px; color: #666;">#${safeId.slice(-6)}</span>
                     <div style="display: flex; gap: 8px; margin-top: 5px;">
-                        <button onclick="editInvoice('${inv.id}')" style="background: #eef2f6; border: none; padding: 4px 8px; border-radius: 4px; font-size: 11px; color: #1e3a8a;">EDIT</button>
-                        <button onclick="deleteInvoice('${inv.id}')" style="background: none; border: none; color: #ef4444; font-size: 11px;">DELETE</button>
+                        <button onclick="editInvoice('${rawId}')" style="background: #eef2f6; border: none; padding: 4px 8px; border-radius: 4px; font-size: 11px; color: #1e3a8a;">EDIT</button>
+                        <button onclick="deleteInvoice('${rawId}')" style="background: none; border: none; color: #ef4444; font-size: 11px;">DELETE</button>
                     </div>
                  </div>
             </div>
         </div>
-    `).join('');
+    `;
+    }).join('');
 };
 
 window.deleteInvoice = async (id) => {
-    if (confirm('Are you sure you want to delete this invoice?')) {
+    if (confirm('Are you sure you want to delete this invoice? (Deducted stock will be restored)')) {
         try {
+            // Restore inventory stock before deleting
+            const invoice = await db.getInvoice(id);
+            if (invoice && invoice.items && invoice.items.length > 0) {
+                for (const item of invoice.items) {
+                    if (item.barcode && item.qty) {
+                        await db.restoreStock(item.barcode, item.qty);
+                    }
+                }
+            }
             await db.deleteInvoice(id);
-            // UI will auto-refresh due to onSnapshot listener
         } catch (err) {
             alert("Error deleting invoice: " + err.message);
         }
@@ -2143,6 +2312,7 @@ window.editInvoice = async (id) => {
     // Load invoice data into current state to edit
     window.currentState.editingInvoiceId = invoice.id;
     window.currentState.editingInvoiceDate = invoice.date;
+    window.currentState.originalInvoiceItems = [...invoice.items];
     window.currentState.cart = [...invoice.items];
 
     // Switch to Scan screen
@@ -2150,10 +2320,8 @@ window.editInvoice = async (id) => {
 
     // Slight delay to ensure DOM is rendered before setting values
     setTimeout(() => {
-        const custInput = document.getElementById('cust-name');
-        const phoneInput = document.getElementById('cust-phone');
+        const custInput = document.getElementById('cust-search');
         if (custInput) custInput.value = invoice.customerName || '';
-        if (phoneInput) phoneInput.value = invoice.customerPhone || '';
         renderCart();
     }, 100);
 };
