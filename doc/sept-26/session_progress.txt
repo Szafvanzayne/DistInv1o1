@@ -1,0 +1,185 @@
+================================================================================
+BIGSTORE PRO (DistInv1o1) - SESSION PROGRESS LOG
+================================================================================
+Date:       2026-09-26 (Saturday)
+Session:    Morning + Afternoon (approx. 12:00 PM – 2:10 PM IST)
+Developer:  Szafvanzayne
+Branch:     main
+Commits:    ec7ae89 → 035a3c8
+
+================================================================================
+1. SESSION OBJECTIVES
+================================================================================
+
+This session covered three major goals:
+  A. Review and document project status and Phase 3 history
+  B. Full code audit (errors, logic, security, production readiness)
+  C. Apply all Phase A (Immediate Stability) bug fixes and push to production
+
+================================================================================
+2. DOCUMENTATION ADDED
+================================================================================
+
+  [doc/project_status_and_roadmap.txt]
+    - Full tech stack overview (Firebase, Firestore, jsPDF, Chart.js, PWA)
+    - Phase 3 and v3.5.1 feature summary
+    - Test credentials and local run instructions
+    - 5-path roadmap for next milestones
+
+  [doc/v1_changes suggestion.txt]
+    - Comprehensive audit report covering:
+        * 5 Critical Runtime Errors
+        * 4 Business Logic / Accounting Flaws
+        * 3 Security Vulnerabilities
+        * 4-Phase Production Readiness Roadmap (Phase A to D)
+
+  [doc/sept-26/session_progress.txt]  <- This file
+    - Full record of what was fixed in this session
+
+  [firestore.rules]
+    - Production-grade Firestore Security Rules added to the repo
+
+================================================================================
+3. BUGS FIXED (Phase A - Immediate Stability v1.1)
+================================================================================
+
+  [FIX-1] XSS: escapeHTML() Implemented & Applied
+  -------------------------------------------------
+  - Added window.escapeHTML() sanitizer (app.js line 34)
+  - Applied to all dynamic innerHTML: customer names, product names, barcodes,
+    staff email/uid/status, invoice IDs, price tiers
+  - Prevents Stored XSS via crafted product/customer names
+
+  [FIX-2] Stock Restoration on Invoice Delete
+  --------------------------------------------
+  - deleteInvoice() now calls db.restoreStock(barcode, qty) for every
+    line item before removing the invoice document
+  - Prevents silent stock drain on invoice deletion
+
+  [FIX-3] Stock Double-Deduction on Invoice Edit
+  -----------------------------------------------
+  - editInvoice() now restores original item quantities before re-saving
+  - Calls db.restoreStock() on each original item at load time
+  - New save path then deducts normally - zero double-deduction
+
+  [FIX-4] GST Tax Formula Corrected (Tax-Inclusive)
+  --------------------------------------------------
+  - Old formula mixed inclusive and exclusive: gstAmt = price * slab / 100
+    (this is EXCLUSIVE, but prices were stored as INCLUSIVE totals - wrong)
+  - Fixed to: taxable = price / (1 + slab/100), gst = price - taxable
+  - Applied in both product form (calculateGST) and invoice generation
+  - Invoices now produce mathematically valid GST breakdowns
+
+  [FIX-5] Service Worker - Cache Miss Fixed (Offline now works)
+  -------------------------------------------------------------
+  - Added { ignoreSearch: true } to caches.match() so versioned URLs like
+    app.js?v=3.5.2 match cached app.js correctly
+  - Added self.skipWaiting() in install event
+  - Added clients.claim() in activate event
+  - CDN (Chart.js) added to ASSETS precache list
+
+  [FIX-6] Hourly Sales Chart - Peak Hours Restored
+  -------------------------------------------------
+  - Old: only rendered hours [0, 4, 8, 12, 16, 20, 23] - missed peak hours
+  - New: 2-hour bins from 8 AM to 10 PM covering all store operating hours
+    Labels: 8 AM, 10 AM, 12 PM, 2 PM, 4 PM, 6 PM, 8 PM, 10 PM
+  - Sales during busy midday/evening periods now visible in chart
+
+  [FIX-7] Search Debounce (300ms)
+  --------------------------------
+  - handleSearchInput() and handleCustomerSearchInput() both wrapped with
+    debounce(func, 300) - prevents Firestore query storm on every keystroke
+
+  [FIX-8] Pending Staff Invite Role Editing Fixed
+  ------------------------------------------------
+  - Old: editing a pending invite wrote to users/{uid} (wrong collection)
+  - Fixed: when editingStaffStatus === 'pending', update goes to
+    staff_invites/{email} via db.updateStaffInvite()
+  - db.js method updateStaffInvite() added/confirmed
+
+  [FIX-9] Staff Creation No Longer Ejects Admin to Login
+  -------------------------------------------------------
+  - Old: handleDirectStaffCreate() called renderView('login') on success
+  - Fixed: checks if already on 'management' view; if yes, stays in place
+
+  [FIX-10] PDF Invoice Multi-Page Pagination
+  ------------------------------------------
+  - Added y > 265 check inside items.forEach loop in getGeneratedPdfBlob()
+  - On overflow: doc.addPage(), reset y = 20, re-render column headers
+  - Totals section also checks y > 250 before rendering on current page
+
+================================================================================
+4. CRITICAL PRODUCTION FIX (v1.1.1) - Added Same Session
+================================================================================
+
+  [FIX-11] Firestore INTERNAL ASSERTION FAILED Crash
+  ---------------------------------------------------
+  - Root Cause: enableMultiTabIndexedDbPersistence() is deprecated in
+    Firebase SDK 10.x and throws INTERNAL ASSERTION FAILED: Unexpected state
+    in certain browser tab and reload scenarios
+  - Fix: Replaced with modern API:
+      initializeFirestore(app, {
+          localCache: persistentLocalCache({
+              tabManager: persistentMultipleTabManager()
+          })
+      })
+  - App now initialises Firestore without crashing on any tab/reload
+
+  [FIX-12] Blank Screen on Page Reload
+  -------------------------------------
+  - Root Cause: Service worker v20 cached bare paths (./app.js) but the app
+    loads versioned URLs (app.js?v=3.5.2) - stale JS returned on reload
+  - Fix:
+      1. Bumped CACHE_NAME to 'bigstore-pro-v21' to force-evict old caches
+      2. Added versioned paths to ASSETS precache list:
+         app.js?v=3.5.2, db.js?v=2.4, style.css?v=3.5.1
+  - Result: Reload no longer causes blank/white screen
+
+================================================================================
+5. COMMITS MADE TODAY
+================================================================================
+
+  1f9bc6e  fix(v1.1): apply all Phase A audit fixes
+           - XSS escaping, stock restore, GST formula, service worker,
+             hourly chart, staff invite, PDF pagination, debounce
+           Files: app.js, db.js, index.html, service-worker.js,
+                  firestore.rules, doc/
+
+  035a3c8  fix(v1.1.1): Firestore INTERNAL ASSERTION crash + blank-on-reload
+           - initializeFirestore with persistentLocalCache
+           - SW cache bumped to v21, versioned paths added to precache
+           Files: app.js, db.js, service-worker.js
+
+================================================================================
+6. LIVE DEPLOYMENT
+================================================================================
+
+  GitHub Repo:   https://github.com/Szafvanzayne/DistInv1o1
+  GitHub Pages:  https://szafvanzayne.github.io/DistInv1o1/
+  Status:        LIVE and confirmed working after session fixes
+  Tested:        Dashboard loaded, stats visible, DevTools shows v-tagged files
+
+================================================================================
+7. PENDING ITEMS (Carry Forward)
+================================================================================
+
+Phase B - Cloud Security & Architecture (v1.2)
+  [ ] Deploy production Firestore Security Rules via Firebase CLI
+  [ ] Migrate staff provisioning to Firebase Cloud Function (Admin SDK)
+  [ ] Daily aggregated sales documents (daily_sales/{date}) to replace
+      full invoice history reads on dashboard load
+
+Phase C - Commercial POS & Hardware (v1.3)
+  [ ] Sequential, non-resettable invoice numbering (INV-2026-0001)
+  [ ] Web Bluetooth / USB ESC/POS thermal receipt printing (58/80mm)
+  [ ] In-app Barcode Label Generator for untagged goods
+  [ ] Bulk product catalog CSV/Excel import & export
+  [ ] Customer Ledger (Khata) - credit, due, payment tracking
+
+Phase D - Automated Testing & CI (v1.4)
+  [ ] Unit tests for billing calculations and tax slab logic
+  [ ] End-to-end Playwright tests (auth, stock deduction, RBAC boundaries)
+
+================================================================================
+END OF SESSION LOG - 2026-09-26
+================================================================================
