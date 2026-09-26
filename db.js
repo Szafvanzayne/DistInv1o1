@@ -5,7 +5,7 @@
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
 import { getAuth } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-auth.js";
-import { getFirestore, enableMultiTabIndexedDbPersistence, collection, doc, setDoc, getDoc, getDocs, deleteDoc, query, where, serverTimestamp, onSnapshot, updateDoc, increment } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
+import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, doc, setDoc, getDoc, getDocs, deleteDoc, query, where, serverTimestamp, onSnapshot, updateDoc, increment } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
 
 
 // Initialize Firebase
@@ -21,15 +21,13 @@ export const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
-export const firestore = getFirestore(app);
 
-// Enable offline persistence (cache data for offline use and sync later)
-enableMultiTabIndexedDbPersistence(firestore).catch((err) => {
-    if (err.code == 'failed-precondition') {
-        console.warn('Firebase Persistence: Multiple tabs open, persistence enabled in first tab only.');
-    } else if (err.code == 'unimplemented') {
-        console.warn('Firebase Persistence: Browser does not support offline caching.');
-    }
+// Modern Firebase 10.x persistent cache (replaces deprecated enableMultiTabIndexedDbPersistence)
+// Uses persistentLocalCache with multi-tab support — no more INTERNAL ASSERTION FAILED errors
+export const firestore = initializeFirestore(app, {
+    localCache: persistentLocalCache({
+        tabManager: persistentMultipleTabManager()
+    })
 });
 
 export const db = {

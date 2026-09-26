@@ -1,10 +1,13 @@
-const CACHE_NAME = 'bigstore-pro-v20';
+const CACHE_NAME = 'bigstore-pro-v21';
 const ASSETS = [
     './',
     './index.html',
     './style.css',
+    './style.css?v=3.5.1',
     './app.js',
+    './app.js?v=3.5.2',
     './db.js',
+    './db.js?v=2.4',
     './manifest.json',
     './icon-192x192.png',
     './icon-512x512.png',
